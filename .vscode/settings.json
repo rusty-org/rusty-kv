@@ -10,5 +10,6 @@
     ".php_cs": "php",
     ".php_cs.dist": "php",
     "iosfwd": "cpp"
-  }
+  },
+  "cmake.sourceDirectory": "/home/piush/Prog/proj/rusty-kv"
 }
