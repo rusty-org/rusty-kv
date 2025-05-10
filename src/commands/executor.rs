@@ -1,8 +1,15 @@
 use crate::resp::value::Value;
+use crate::storage::memory::MemoryStore;
 use anyhow::{Ok, Result, anyhow};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+use super::echo::EchoCommand;
+use super::get::GetCommand;
+use super::help::HelpCommand;
+use super::ping::PingCommand;
+use super::set::SetCommand;
 
 pub struct CommandExecutor {
   db: Arc<Mutex<HashMap<String, Value>>>,
@@ -15,69 +22,54 @@ impl CommandExecutor {
     }
   }
 
-  pub async fn execute(&self, command: &str, args: Vec<String>) -> Result<Value> {
+  pub async fn execute(
+    &self,
+    command: &str,
+    args: Vec<String>,
+    store: MemoryStore,
+  ) -> Result<Value> {
     match command {
       "PING" => self.ping(args).await,
       "HELP" => self.help(args).await,
       "ECHO" => self.echo(args).await,
-      "GET" => self.get(args).await,
-      "SET" => self.set(args).await,
+      "GET" => self.get(args, store).await,
+      "SET" => self.set(args, store).await,
       "DEL" => self.del(args).await,
       _ => Err(anyhow!("Unknown command: {}", command)),
     }
   }
 
   async fn ping(&self, args: Vec<String>) -> Result<Value> {
-    if args.is_empty() {
-      Ok(Value::SimpleString("PONG".to_string()))
-    } else {
-      Ok(Value::BulkString(args[0].clone()))
-    }
+    let ping = PingCommand::new();
+    ping.execute(args)
   }
 
-  async fn help(&self, _args: Vec<String>) -> Result<Value> {
-    let help_text = "Available commands:\n\
-                        PING - Test connection\n\
-                        ECHO <message> - Echo back a message\n\
-                        GET <key> - Get value for key\n\
-                        SET <key> <value> - Set key to value\n\
-                        DEL <key> [<key> ...] - Delete keys\n\
-                        HELP - Show this help";
-
-    Ok(Value::BulkString(help_text.to_string()))
+  async fn help(&self, args: Vec<String>) -> Result<Value> {
+    let help = HelpCommand::new();
+    help.execute(args)
   }
 
   async fn echo(&self, args: Vec<String>) -> Result<Value> {
-    if args.is_empty() {
-      return Err(anyhow!("ECHO requires at least one argument"));
-    }
-    Ok(Value::BulkString(args[0].clone()))
+    let echo = EchoCommand::new(args.join(" "));
+    echo.execute(args)
   }
 
-  async fn get(&self, args: Vec<String>) -> Result<Value> {
+  async fn get(&self, args: Vec<String>, store: MemoryStore) -> Result<Value> {
     if args.is_empty() {
       return Err(anyhow!("GET requires a key"));
     }
 
-    let db = self.db.lock().await;
-    match db.get(&args[0]) {
-      Some(value) => Ok(value.clone()),
-      None => Ok(Value::Null),
-    }
+    let get = GetCommand::new(store);
+    get.execute(args).await
   }
 
-  async fn set(&self, args: Vec<String>) -> Result<Value> {
+  async fn set(&self, args: Vec<String>, store: MemoryStore) -> Result<Value> {
     if args.len() < 2 {
       return Err(anyhow!("SET requires a key and a value"));
     }
 
-    let key = args[0].clone();
-    let value = Value::BulkString(args[1].clone());
-
-    let mut db = self.db.lock().await;
-    db.insert(key, value);
-
-    Ok(Value::SimpleString("OK".to_string()))
+    let set = SetCommand::new(store);
+    set.execute(args).await
   }
 
   async fn del(&self, args: Vec<String>) -> Result<Value> {

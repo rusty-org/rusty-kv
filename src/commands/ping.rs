@@ -1,4 +1,3 @@
-use crate::commands::lib::Command;
 use crate::resp::value::Value;
 use anyhow::Result;
 
@@ -10,8 +9,8 @@ impl PingCommand {
   }
 }
 
-impl Command for PingCommand {
-  fn execute(&self, args: Vec<String>) -> Result<Value> {
+impl PingCommand {
+  pub fn execute(&self, args: Vec<String>) -> Result<Value> {
     if args.is_empty() {
       Ok(Value::SimpleString("PONG".to_string()))
     } else {

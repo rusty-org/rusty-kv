@@ -1,4 +1,3 @@
-pub use crate::commands::lib::Command;
 use crate::resp::value::Value;
 use anyhow::Result;
 
@@ -12,8 +11,8 @@ impl HelpCommand {
   }
 }
 
-impl Command for HelpCommand {
-  fn execute(&self, _args: Vec<String>) -> Result<Value> {
+impl HelpCommand {
+  pub fn execute(&self, _args: Vec<String>) -> Result<Value> {
     let help_text = "Available commands:\n\
                          PING - Test connection\n\
                          ECHO <message> - Echo back a message\n\

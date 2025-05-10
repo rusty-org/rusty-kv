@@ -1,6 +1,8 @@
 use crate::{
   commands::executor::CommandExecutor,
   resp::{handler::RespHandler, value::Value},
+  storage::memory::MemoryStore,
+  storage::memory::Store,
 };
 
 use anyhow::Result;
@@ -19,6 +21,7 @@ impl NetworkUtils {
 
     debug!("Initializing executor for incoming commands");
     let executor = CommandExecutor::new();
+    let memory_store = MemoryStore::new();
 
     while let Some(value) = handler.read_value().await? {
       debug!("Received: {:?}", value);
@@ -26,7 +29,8 @@ impl NetworkUtils {
       if let Some((cmd, args)) = value.to_command() {
         info!("Command: {} with args: {:?}", cmd, args);
 
-        let result = executor.execute(&cmd, args).await;
+
+        let result = executor.execute(&cmd, args, memory_store.clone()).await;
         match result {
           Ok(response) => {
             handler.write_value(response).await?;

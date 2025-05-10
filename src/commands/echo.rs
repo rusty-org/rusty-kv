@@ -1,4 +1,3 @@
-use crate::commands::lib::Command;
 use crate::resp::value::Value;
 use anyhow::{Result, anyhow};
 
@@ -14,8 +13,8 @@ impl EchoCommand {
   }
 }
 
-impl Command for EchoCommand {
-  fn execute(&self, args: Vec<String>) -> Result<Value> {
+impl EchoCommand {
+  pub fn execute(&self, args: Vec<String>) -> Result<Value> {
     if !args.is_empty() {
       Ok(Value::BulkString(args[0].clone()))
     } else if !self.message.is_empty() {

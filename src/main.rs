@@ -4,7 +4,9 @@ use tokio::net::TcpListener;
 
 // @NOTE Local dependencies
 mod commands;
+mod ds;
 mod resp;
+mod storage;
 mod utils;
 
 use utils::{logger::Logger, network::NetworkUtils, settings::Settings};
