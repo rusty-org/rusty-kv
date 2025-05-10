@@ -12,13 +12,16 @@ maintaining protocol compatibility.
 ## ✨ Features
 
 - 🔄 TCP server implementation with async I/O
-- 🔌 Redis protocol compatibility
+- 🔌 Redis protocol compatibility (RESP)
 - 🏗️ Command handling architecture
+- 💾 In-memory key-value storage with async access
 - 📋 Currently implemented commands:
   - `PING` - Test server connectivity
   - `ECHO` - Echo back the provided message
   - `SET` - Set the value of a key
   - `GET` - Get the value of a key
+  - `DEL` - Delete one or more keys
+  - `HELP` - Display available commands
 
 ## ⚙️ How It Works 🔍
 
@@ -35,6 +38,10 @@ sequenceDiagram
     S->>C: OK
     C->>S: GET key
     S->>C: "value"
+    C->>S: DEL key
+    S->>C: 1
+    C->>S: HELP
+    S->>C: "Available commands: ..."
 ```
 
 1. **Client** sends a command to the **RustyKV Server**.
@@ -58,19 +65,24 @@ You can use the standard Redis CLI or any Redis client to connect to the server:
 
 ```bash
 # debian/ubuntu
-sudo apt-get install socat
+sudo apt-get install redis-tools
 
 # macOS (using Homebrew)
-brew install socat
+brew install redis
 
 # Connect to the server
+redis-cli -h localhost -p 6379
+
+# Or using socat
 socat - TCP:localhost:6379
 
-# Then type commands in RESP format
+# Then type commands
 PING
-ECHO Hello World!!
+ECHO "Hello World!!"
 SET key value
 GET key
+DEL key
+HELP
 ```
 
 ## 💻 C++ CLI Client
@@ -109,7 +121,9 @@ Once connected, you will see a prompt where you can type commands:
 ```
 127.0.0.1:6379> SET mykey "Hello, RustyKV!"
 127.0.0.1:6379> GET mykey
+127.0.0.1:6379> DEL mykey
 127.0.0.1:6379> PING
+127.0.0.1:6379> HELP
 ```
 
 To exit the client, type `exit` or `quit`.
