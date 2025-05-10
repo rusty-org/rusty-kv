@@ -2,18 +2,10 @@ use crate::{resp::value::Value, storage::memory::MemoryStore, storage::memory::S
 use anyhow::{Result, anyhow};
 use log::debug;
 
-pub struct SetCommand {
-  store: MemoryStore,
-}
+pub struct SetCommand;
 
 impl SetCommand {
-  pub fn new(store: MemoryStore) -> Self {
-    Self { store }
-  }
-}
-
-impl SetCommand {
-  pub async fn execute(&self, mut args: Vec<String>) -> Result<Value> {
+  pub async fn execute(mut args: Vec<String>, store: MemoryStore) -> Result<Value> {
     if args.len() < 2 {
       return Err(anyhow!("SET requires a key and a value"));
     }
@@ -53,8 +45,7 @@ impl SetCommand {
     }
 
     // Set the value in the store
-    self
-      .store
+    store
       .set(key.as_str(), Value::SimpleString(value.clone()))
       .await;
     debug!("Set key {} to value {}", key, value);

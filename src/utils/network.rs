@@ -6,7 +6,7 @@ use crate::{
 };
 
 use anyhow::Result;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use tokio::net::TcpStream;
 
 pub struct NetworkUtils;
@@ -19,9 +19,11 @@ impl NetworkUtils {
     debug!("Initializing RESP handler");
     let mut handler = RespHandler::new(stream);
 
-    debug!("Initializing executor for incoming commands");
-    let executor = CommandExecutor::new();
+    warn!("Initializing memory store");
     let memory_store = MemoryStore::new();
+
+    debug!("Initializing executor for incoming commands");
+    let executor = CommandExecutor::new(memory_store);
 
     while let Some(value) = handler.read_value().await? {
       debug!("Received: {:?}", value);
@@ -29,7 +31,7 @@ impl NetworkUtils {
       if let Some((cmd, args)) = value.to_command() {
         info!("Command: {} with args: {:?}", cmd, args);
 
-        let result = executor.execute(&cmd, args, memory_store.clone()).await;
+        let result = executor.execute(&cmd, args).await;
         match result {
           Ok(response) => {
             handler.write_value(response).await?;

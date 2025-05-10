@@ -6,24 +6,18 @@ use crate::resp::value::Value;
 use crate::storage::memory::MemoryStore;
 use crate::storage::memory::Store;
 
-pub struct DeleteCommand {
-  store: MemoryStore,
-}
+pub struct DeleteCommand;
 
 impl DeleteCommand {
-  pub fn new(store: MemoryStore) -> Self {
-    Self { store }
-  }
-
-  pub async fn execute(&self, args: Vec<String>) -> Result<Value> {
+  pub async fn execute(args: Vec<String>, store: MemoryStore) -> Result<Value> {
     if args.is_empty() {
       return Err(anyhow!("DEL requires at least one key"));
     }
 
     for key in args.clone() {
-      if let Some(value) = self.store.get(key.as_str()).await {
+      if let Some(value) = store.get(key.as_str()).await {
         debug!("Deleting key {} with value {:?}", key, value);
-        self.store.delete(key.as_str()).await;
+        store.delete(key.as_str()).await;
       }
     }
 
