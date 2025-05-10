@@ -1,25 +1,19 @@
 use crate::resp::value::Value;
 use crate::storage::memory::MemoryStore;
-use anyhow::{Ok, Result, anyhow};
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use anyhow::{Result, anyhow};
 
+use super::delete::DeleteCommand;
 use super::echo::EchoCommand;
 use super::get::GetCommand;
 use super::help::HelpCommand;
 use super::ping::PingCommand;
 use super::set::SetCommand;
 
-pub struct CommandExecutor {
-  db: Arc<Mutex<HashMap<String, Value>>>,
-}
+pub struct CommandExecutor;
 
 impl CommandExecutor {
   pub fn new() -> Self {
-    Self {
-      db: Arc::new(Mutex::new(HashMap::new())),
-    }
+    Self
   }
 
   pub async fn execute(
@@ -34,7 +28,7 @@ impl CommandExecutor {
       "ECHO" => self.echo(args).await,
       "GET" => self.get(args, store).await,
       "SET" => self.set(args, store).await,
-      "DEL" => self.del(args).await,
+      "DEL" => self.del(args, store).await,
       _ => Err(anyhow!("Unknown command: {}", command)),
     }
   }
@@ -72,20 +66,12 @@ impl CommandExecutor {
     set.execute(args).await
   }
 
-  async fn del(&self, args: Vec<String>) -> Result<Value> {
+  async fn del(&self, args: Vec<String>, store: MemoryStore) -> Result<Value> {
     if args.is_empty() {
       return Err(anyhow!("DEL requires at least one key"));
     }
 
-    let mut count = 0;
-    let mut db = self.db.lock().await;
-
-    for key in args {
-      if db.remove(&key).is_some() {
-        count += 1;
-      }
-    }
-
-    Ok(Value::Integer(count))
+    let del = DeleteCommand::new(store);
+    del.execute(args).await
   }
 }

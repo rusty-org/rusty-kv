@@ -1,3 +1,4 @@
+pub mod delete;
 pub mod echo;
 pub mod executor;
 pub mod get;

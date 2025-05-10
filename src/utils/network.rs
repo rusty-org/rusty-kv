@@ -29,7 +29,6 @@ impl NetworkUtils {
       if let Some((cmd, args)) = value.to_command() {
         info!("Command: {} with args: {:?}", cmd, args);
 
-
         let result = executor.execute(&cmd, args, memory_store.clone()).await;
         match result {
           Ok(response) => {
