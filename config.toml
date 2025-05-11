@@ -6,6 +6,8 @@ description = "A simple server configuration"
 [server.network]
 host = "0.0.0.0"
 port = 6379
+user = "admin"
+password = "securepassword"
 preferred_connection = "tcp"
 ssl = false
 timeout = 30

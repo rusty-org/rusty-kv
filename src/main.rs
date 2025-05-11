@@ -11,7 +11,7 @@ mod utils;
 
 use utils::{logger::Logger, network::NetworkUtils, settings::Settings};
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() {
   Logger::setup();
 
