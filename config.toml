@@ -6,22 +6,14 @@ description = "A simple server configuration"
 [server.network]
 host = "0.0.0.0"
 port = 6379
+root_user = "root"
+root_password = "rootpassword"
 user = "admin"
 password = "securepassword"
-preferred_connection = "tcp"
-ssl = false
-timeout = 30
-max_connections = 1000
-max_memory = 4096
-concurrency = true
-tls_cert = "/etc/ssl/certs/server.crt"
-tls_key = "/etc/ssl/private/server.key"
-tls_client_cert = "/etc/ssl/certs/client.crt"
-tls_client_key = "/etc/ssl/private/client.key"
 
 [server.db]
-path = "/var/lib/rusty_kv/db"
-backup_path = "/var/lib/rusty_kv/backup"
+path = "./.db/internal"
+backup_path = "./.db/backup"
 max_size = 2048
 backup_interval = 3600
 compression = true

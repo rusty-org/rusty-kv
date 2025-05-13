@@ -9,6 +9,7 @@ mod resp;
 mod storage;
 mod utils;
 
+use storage::db::InternalDB;
 use utils::{logger::Logger, network::NetworkUtils, settings::Settings};
 
 #[tokio::main(flavor = "multi_thread")]
@@ -21,6 +22,8 @@ async fn main() {
   info!("Loaded settings from config.toml");
 
   warn!("Starting Redis clone server...");
+
+  let db = InternalDB::new(settings.clone());
 
   let kv_host = settings
     .get::<String>("server.network.host")

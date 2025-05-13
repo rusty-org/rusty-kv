@@ -11,5 +11,10 @@ build/
 # MSVC Windows builds of rustc generate these, which store debugging information
 *.pdb
 
+# DB files
+*.db
+*.sqlite
+db/
+
 # Environment variable files
 .env

@@ -2,12 +2,12 @@ use config::{self, Config, File};
 use log::error;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Settings {
   pub server: Server,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Server {
   pub name: String,
   pub version: String,
@@ -16,23 +16,17 @@ pub struct Server {
   pub db: Database,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Network {
   pub host: String,
   pub port: u16,
-  pub preferred_connection: String,
-  pub ssl: bool,
-  pub timeout: u64,
-  pub max_connections: u32,
-  pub max_memory: u32,
-  pub concurrency: bool,
-  pub tls_cert: String,
-  pub tls_key: String,
-  pub tls_client_cert: String,
-  pub tls_client_key: String,
+  pub root_user: String,
+  pub root_password: String,
+  pub user: String,
+  pub password: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Database {
   pub path: String,
   pub backup_path: String,
@@ -55,16 +49,10 @@ impl Settings {
         network: Network {
           host: "127.0.0.1".into(),
           port: 8080,
-          preferred_connection: "http".into(),
-          ssl: false,
-          timeout: 30,
-          max_connections: 100,
-          max_memory: 512,
-          concurrency: true,
-          tls_cert: "".into(),
-          tls_key: "".into(),
-          tls_client_cert: "".into(),
-          tls_client_key: "".into(),
+          root_user: "root".into(),
+          root_password: "rootpassword".into(),
+          user: "admin".into(),
+          password: "securepassword".into(),
         },
         db: Database {
           path: "db.sqlite".into(),
