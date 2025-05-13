@@ -23,7 +23,8 @@ async fn main() {
 
   warn!("Starting Redis clone server...");
 
-  let db = InternalDB::new(settings.clone());
+  info!("Starting internal database...");
+  InternalDB::new(&settings);
 
   let kv_host = settings
     .get::<String>("server.network.host")
