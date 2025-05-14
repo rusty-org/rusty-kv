@@ -2,9 +2,12 @@ use anyhow::{Result, anyhow};
 
 use crate::{resp::value::Value, storage::memory::MemoryStore};
 
-use super::general::{
-  delete::DeleteCommand, echo::EchoCommand, get::GetCommand, help::HelpCommand, ping::PingCommand,
-  set::SetCommand,
+use super::{
+  acl::auth::AuthCommand,
+  general::{
+    delete::DeleteCommand, echo::EchoCommand, get::GetCommand, help::HelpCommand,
+    ping::PingCommand, set::SetCommand,
+  },
 };
 
 pub struct CommandExecutor {
@@ -27,6 +30,9 @@ impl CommandExecutor {
       "GET" => GetCommand::execute(args, self.store.to_owned()).await,
       "SET" => SetCommand::execute(args, self.store.to_owned()).await,
       "DEL" => DeleteCommand::execute(args, self.store.to_owned()).await,
+
+      // @INFO ACL commands
+      "AUTH" => AuthCommand::execute(args).await,
       _ => Err(anyhow!("Unknown command: {}", command)),
     }
   }
