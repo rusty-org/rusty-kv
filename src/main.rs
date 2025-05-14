@@ -1,6 +1,6 @@
 // @NOTE External dependencies
 use log::{error, info, warn};
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, task};
 
 // @NOTE Local dependencies
 mod commands;
@@ -23,8 +23,8 @@ async fn main() {
 
   warn!("Starting Redis clone server...");
 
-  info!("Starting internal database...");
-  InternalDB::new(&settings);
+  warn!("Initializing internal database...");
+  let internal_db = InternalDB::new(&settings);
 
   let kv_host = settings
     .get::<String>("server.network.host")
