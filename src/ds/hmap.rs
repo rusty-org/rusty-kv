@@ -6,6 +6,14 @@ pub struct KvHashMap {
   data: HashMap<String, String>,
 }
 
+impl KvHashMap {
+  pub fn new() -> Self {
+    Self {
+      data: HashMap::new(),
+    }
+  }
+}
+
 impl Entity for KvHashMap {
   fn entity_type(&self) -> &'static str {
     "hashmap"

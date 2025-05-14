@@ -1,29 +1,25 @@
 use crate::{
   commands::executor::CommandExecutor,
   resp::{handler::RespHandler, value::Value},
-  storage::memory::MemoryStore,
-  storage::memory::Store,
+  storage::{db::InternalDB, memory::MemoryStore},
 };
 
 use anyhow::Result;
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 use tokio::net::TcpStream;
 
 pub struct NetworkUtils;
 
 impl NetworkUtils {
-  pub async fn accept_connection(stream: TcpStream) -> Result<()> {
+  pub async fn accept_connection(stream: TcpStream, store: MemoryStore, db: InternalDB) -> Result<()> {
     let peer_addr = stream.peer_addr()?;
     info!("Handling connection from: {}", peer_addr);
 
     debug!("Initializing RESP handler");
     let mut handler = RespHandler::new(stream);
 
-    warn!("Initializing memory store");
-    let memory_store = MemoryStore::new();
-
     debug!("Initializing executor for incoming commands");
-    let executor = CommandExecutor::new(memory_store);
+    let executor = CommandExecutor::new(store, db);
 
     while let Some(value) = handler.read_value().await? {
       debug!("Received: {:?}", value);
@@ -42,7 +38,7 @@ impl NetworkUtils {
           }
         }
       } else {
-        error!("Eror handling command, invalid format - {:?}", value);
+        error!("Error handling command, invalid format - {:?}", value);
         handler
           .write_value(Value::Error("ERR invalid command format".to_string()))
           .await?;
