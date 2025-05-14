@@ -1,3 +1,8 @@
+//! Command execution router and dispatcher.
+//!
+//! This module handles the parsing, routing, and execution of all commands.
+//! It maps command strings to their corresponding handler implementations.
+
 use anyhow::{Result, anyhow};
 use log::info;
 
@@ -18,16 +23,52 @@ use super::{
   },
 };
 
+/// Command executor and router.
+///
+/// Routes incoming commands to the appropriate command handler
+/// and manages shared state (storage, database connections).
 pub struct CommandExecutor {
+  /// Shared memory store for key-value operations
   store: MemoryStore,
+  /// Database connection for persistent storage
   db: InternalDB,
 }
 
 impl CommandExecutor {
+  /// Creates a new command executor.
+  ///
+  /// # Arguments
+  ///
+  /// * `store` - Shared memory store
+  /// * `db` - Database connection
+  ///
+  /// # Returns
+  ///
+  /// A new CommandExecutor instance
   pub fn new(store: MemoryStore, db: InternalDB) -> Self {
     Self { store, db }
   }
 
+  /// Executes a command with its arguments.
+  ///
+  /// Routes the command to the appropriate handler based on the command name.
+  ///
+  /// # Arguments
+  ///
+  /// * `command` - Command name (e.g., "GET", "SET", "PING")
+  /// * `args` - Command arguments
+  ///
+  /// # Returns
+  ///
+  /// * `Ok(Value)` - Command execution result
+  /// * `Err` - Error if command is invalid or execution fails
+  ///
+  /// # Example
+  ///
+  /// ```
+  /// // Execute a GET command
+  /// let result = executor.execute("GET", vec!["mykey".to_string()]).await;
+  /// ```
   pub async fn execute(&self, command: &str, args: Vec<String>) -> Result<Value> {
     // Log command with auth status
     let auth_status = if self.store.is_authenticated() { "authenticated" } else { "unauthenticated" };

@@ -1,5 +1,10 @@
+//! In-memory storage implementation for the key-value server.
+//!
+//! Provides a thread-safe, multi-user in-memory data store with support
+//! for different entity types (HashMaps, Sets) and authentication.
+
 use std::{
-  collections::HashMap,
+  collections::{HashMap, LinkedList},
   sync::{Arc, Mutex, RwLock},
 };
 
@@ -8,23 +13,29 @@ use log::info;
 use crate::resp::value::Value;
 use super::entities::Entities;
 
+/// Main in-memory storage structure.
+///
+/// Provides authenticated access to user-specific data stores.
 #[derive(Clone)]
 pub struct MemoryStore {
-  // Store for authenticated users, keyed by user credential hash
+  /// Store for authenticated users, keyed by user credential hash
   auth_stores: Arc<RwLock<HashMap<String, UserStore>>>,
-  // Current user's credential hash (if authenticated)
+  /// Current user's credential hash (if authenticated)
   current_user: Arc<RwLock<Option<String>>>,
 }
 
-// Represents a single user's data store
+/// Represents a single user's data store.
+///
+/// Contains all entities (HashMaps, Sets, etc.) owned by a specific user.
 #[derive(Clone, Debug)]
 pub struct UserStore {
-  // Stores entity references for various data types
-  // Key is entity name, value is the entity (HashMap, Set, etc)
+  /// Stores entity references for various data types
+  /// Key is entity name, value is the entity (HashMap, Set, etc)
   entities: Arc<Mutex<HashMap<String, Entities>>>,
 }
 
 impl UserStore {
+  /// Creates a new empty UserStore.
   fn new() -> Self {
     Self {
       entities: Arc::new(Mutex::new(HashMap::new())),
@@ -32,26 +43,116 @@ impl UserStore {
   }
 }
 
+/// Interface for storage operations.
+///
+/// Defines the standard operations that all storage implementations must provide.
 pub trait Store {
+  /// Creates a new store instance.
   fn new() -> Self;
 
+  /// Sets a key-value pair in the store.
+  ///
+  /// # Arguments
+  ///
+  /// * `key` - The key to set
+  /// * `value` - The value to store
   async fn set(&self, key: &str, value: Value) -> anyhow::Result<()>;
+
+  /// Gets a value from the store by key.
+  ///
+  /// # Arguments
+  ///
+  /// * `key` - The key to look up
+  ///
+  /// # Returns
+  ///
+  /// * `Some(Value)` - The value if found
+  /// * `None` - If the key doesn't exist
   async fn get(&self, key: &str) -> Option<Value>;
+
+  /// Deletes a key-value pair from the store.
+  ///
+  /// # Arguments
+  ///
+  /// * `key` - The key to delete
+  ///
+  /// # Returns
+  ///
+  /// * `Some(Value)` - The deleted value if found
+  /// * `None` - If the key didn't exist
   async fn delete(&self, key: &str) -> Option<Value>;
 
-  // Authentication methods
+  /// Sets the current authenticated user.
+  ///
+  /// # Arguments
+  ///
+  /// * `user_hash` - Credential hash for the authenticated user, or None to clear
   fn set_current_user(&self, user_hash: Option<String>);
+
+  /// Gets the current authenticated user's credential hash.
+  ///
+  /// # Returns
+  ///
+  /// * `Some(String)` - Credential hash if a user is authenticated
+  /// * `None` - If no user is authenticated
   fn get_current_user(&self) -> Option<String>;
+
+  /// Checks if a user is currently authenticated.
+  ///
+  /// # Returns
+  ///
+  /// * `true` - A user is authenticated
+  /// * `false` - No user is authenticated
   fn is_authenticated(&self) -> bool;
 
-  // Entity methods
+  /// Creates a new entity of the specified type.
+  ///
+  /// # Arguments
+  ///
+  /// * `entity_type` - Type of entity to create (e.g., "hashmap", "set")
+  /// * `name` - Name to assign to the new entity
   async fn create_entity(&self, entity_type: &str, name: &str) -> anyhow::Result<()>;
+
+  /// Adds a value to an entity.
+  ///
+  /// # Arguments
+  ///
+  /// * `entity_name` - Name of the entity to add to
+  /// * `key` - Key within the entity
+  /// * `value` - Value to add
   async fn entity_add(&self, entity_name: &str, key: &str, value: Value) -> anyhow::Result<()>;
+
+  /// Gets a value from an entity.
+  ///
+  /// # Arguments
+  ///
+  /// * `entity_name` - Name of the entity to get from
+  /// * `key` - Key within the entity
+  ///
+  /// # Returns
+  ///
+  /// * `Ok(Some(Value))` - Value was found
+  /// * `Ok(None)` - Key doesn't exist in entity
+  /// * `Err(...)` - Entity doesn't exist or other error
   async fn entity_get(&self, entity_name: &str, key: &str) -> anyhow::Result<Option<Value>>;
+
+  /// Deletes a value from an entity.
+  ///
+  /// # Arguments
+  ///
+  /// * `entity_name` - Name of the entity to delete from
+  /// * `key` - Key within the entity to delete
+  ///
+  /// # Returns
+  ///
+  /// * `Ok(Some(Value))` - Value was deleted
+  /// * `Ok(None)` - Key didn't exist in entity
+  /// * `Err(...)` - Entity doesn't exist or other error
   async fn entity_delete(&self, entity_name: &str, key: &str) -> anyhow::Result<Option<Value>>;
 }
 
 impl Store for MemoryStore {
+  /// Creates a new empty MemoryStore instance.
   fn new() -> Self {
     info!("Initializing memory store for authenticated users only");
     Self {
@@ -60,6 +161,11 @@ impl Store for MemoryStore {
     }
   }
 
+  /// Sets the current authenticated user and initializes their store if needed.
+  ///
+  /// # Arguments
+  ///
+  /// * `user_hash` - Credential hash for the user, or None to clear authentication
   fn set_current_user(&self, user_hash: Option<String>) {
     let mut current_user = self.current_user.write().unwrap();
     *current_user = user_hash;
@@ -74,14 +180,20 @@ impl Store for MemoryStore {
     }
   }
 
+  /// Gets the current authenticated user's credential hash.
   fn get_current_user(&self) -> Option<String> {
     self.current_user.read().unwrap().clone()
   }
 
+  /// Checks if a user is currently authenticated.
   fn is_authenticated(&self) -> bool {
     self.current_user.read().unwrap().is_some()
   }
 
+  /// Sets a key-value pair in the store.
+  ///
+  /// If the key contains a dot, it's treated as an entity operation.
+  /// Otherwise, it's stored in the default HashMap.
   async fn set(&self, key: &str, value: Value) -> anyhow::Result<()> {
     if !self.is_authenticated() {
       return Err(anyhow::anyhow!("Authentication required"));
@@ -123,6 +235,10 @@ impl Store for MemoryStore {
     }
   }
 
+  /// Gets a value from the store by key.
+  ///
+  /// If the key contains a dot, it's treated as an entity operation.
+  /// Otherwise, it looks in the default HashMap.
   async fn get(&self, key: &str) -> Option<Value> {
     if !self.is_authenticated() {
       return None;
@@ -159,6 +275,10 @@ impl Store for MemoryStore {
     None
   }
 
+  /// Deletes a key-value pair from the store.
+  ///
+  /// If the key contains a dot, it's treated as an entity operation.
+  /// Otherwise, it removes from the default HashMap.
   async fn delete(&self, key: &str) -> Option<Value> {
     if !self.is_authenticated() {
       return None;
@@ -195,14 +315,22 @@ impl Store for MemoryStore {
     None
   }
 
+  /// Creates a new entity of the specified type.
+  ///
+  /// # Arguments
+  ///
+  /// * `entity_type` - Type of entity to create (e.g., "hashmap", "set")
+  /// * `name` - Name to assign to the new entity
   async fn create_entity(&self, entity_type: &str, name: &str) -> anyhow::Result<()> {
     if !self.is_authenticated() {
       return Err(anyhow::anyhow!("Authentication required"));
     }
 
+    // Create the appropriate entity type based on the request
     let entity = match entity_type.to_lowercase().as_str() {
       "set" => Entities::Set(Arc::new(Mutex::new(super::entities::KvSet::new()))),
       "hashmap" => Entities::HashMap(Arc::new(Mutex::new(super::entities::KvHashMap::new()))),
+      "linkedlist" => Entities::LinkedList(Arc::new(Mutex::new(super::entities::KvLinkedList::new()))),
       _ => return Err(anyhow::anyhow!("Unknown entity type: {}", entity_type)),
     };
 
@@ -218,6 +346,9 @@ impl Store for MemoryStore {
     }
   }
 
+  /// Adds a value to an entity.
+  ///
+  /// Creates the entity if it doesn't exist.
   async fn entity_add(&self, entity_name: &str, key: &str, value: Value) -> anyhow::Result<()> {
     if !self.is_authenticated() {
       return Err(anyhow::anyhow!("Authentication required"));
@@ -257,6 +388,15 @@ impl Store for MemoryStore {
           let mut hashmap = hashmap.lock().unwrap();
           hashmap.insert(key.to_string(), value);
         },
+        Entities::LinkedList(list) => {
+          let mut list = list.lock().unwrap();
+          if let Value::SimpleString(val) = &value {
+            list.push_back(val.clone());
+          } else {
+            // Use key as fallback if value isn't a SimpleString
+            list.push_back(key.to_string());
+          }
+        },
         _ => return Err(anyhow::anyhow!("Entity type not supported for this operation")),
       }
     }
@@ -264,6 +404,7 @@ impl Store for MemoryStore {
     Ok(())
   }
 
+  /// Gets a value from an entity.
   async fn entity_get(&self, entity_name: &str, key: &str) -> anyhow::Result<Option<Value>> {
     if !self.is_authenticated() {
       return Err(anyhow::anyhow!("Authentication required"));
@@ -289,6 +430,16 @@ impl Store for MemoryStore {
             let hashmap = hashmap.lock().unwrap();
             Ok(hashmap.get(key).cloned())
           },
+          Entities::LinkedList(list) => {
+            let list = list.lock().unwrap();
+            // For linked list, we need to iterate to find the key
+            for value in list.iter() {
+              if value == key {
+                return Ok(Some(Value::SimpleString(key.to_string())));
+              }
+            }
+            Ok(None)
+          },
           _ => Err(anyhow::anyhow!("Entity type not supported for this operation")),
         }
       } else {
@@ -299,6 +450,7 @@ impl Store for MemoryStore {
     }
   }
 
+  /// Deletes a value from an entity.
   async fn entity_delete(&self, entity_name: &str, key: &str) -> anyhow::Result<Option<Value>> {
     if !self.is_authenticated() {
       return Err(anyhow::anyhow!("Authentication required"));
@@ -324,6 +476,31 @@ impl Store for MemoryStore {
           Entities::HashMap(hashmap) => {
             let mut hashmap = hashmap.lock().unwrap();
             Ok(hashmap.remove(key))
+          },
+          Entities::LinkedList(list) => {
+            let mut list = list.lock().unwrap();
+            // For linked list, we need a stable approach to remove the key
+            let mut temp_list = LinkedList::new();
+            let mut removed = false;
+
+            // Move all elements except the one we want to remove
+            while let Some(value) = list.pop_front() {
+              if !removed && value == key {
+                removed = true;
+                // Skip this item (don't add to temp_list)
+              } else {
+                temp_list.push_back(value);
+              }
+            }
+
+            // Replace the original list with our filtered list
+            *list = temp_list;
+
+            if removed {
+              Ok(Some(Value::SimpleString(key.to_string())))
+            } else {
+              Ok(None)
+            }
           },
           _ => Err(anyhow::anyhow!("Entity type not supported for this operation")),
         }

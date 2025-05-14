@@ -1,12 +1,40 @@
+//! Authentication command implementation.
+//!
+//! Handles user authentication against a database of credentials,
+//! using secure password hashing (Keccak256).
+
 use anyhow::{Result, anyhow};
 use log::{info, warn};
 use sha3::{Digest, Keccak256};
 
 use crate::{resp::value::Value, storage::{db::InternalDB, memory::MemoryStore, memory::Store}};
 
+/// Authentication command handler.
+///
+/// Validates user credentials against the database and establishes
+/// an authenticated session if successful.
 pub struct AuthCommand;
 
 impl AuthCommand {
+  /// Executes the AUTH command.
+  ///
+  /// # Arguments
+  ///
+  /// * `args` - Command arguments (should contain username and password)
+  /// * `store` - Memory store to set authentication state on
+  /// * `db` - Database connection for credential verification
+  ///
+  /// # Returns
+  ///
+  /// * `Ok(Value)` - Authentication successful response
+  /// * `Err` - Error if authentication fails or arguments are invalid
+  ///
+  /// # Example
+  ///
+  /// ```
+  /// // Client sends: AUTH username password
+  /// let result = AuthCommand::execute(vec!["username".to_string(), "password".to_string()], store, db).await;
+  /// ```
   pub async fn execute(args: Vec<String>, store: MemoryStore, db: InternalDB) -> Result<Value> {
     if args.len() < 2 {
       return Err(anyhow!("AUTH requires username and password"));

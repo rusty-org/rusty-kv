@@ -1,15 +1,40 @@
+//! RESP (Redis Serialization Protocol) value types.
+//!
+//! Defines the different value types that can be serialized and deserialized
+//! according to the RESP specification.
+
+
+/// Enum representing the different RESP value types.
 #[derive(Clone, Debug)]
 pub enum Value {
+  /// Null value (represented as "$-1\r\n" in RESP)
   Null,
+
+  /// Simple string (represented as "+{string}\r\n" in RESP)
   SimpleString(String),
+
+  /// Bulk string (represented as "${length}\r\n{string}\r\n" in RESP)
   BulkString(String),
+
+  /// Array of values (represented as "*{length}\r\n{values...}" in RESP)
   Array(Vec<Value>),
+
+  /// Error message (represented as "-{message}\r\n" in RESP)
   Error(String),
+
+  /// Integer (represented as ":{integer}\r\n" in RESP)
   Integer(i64),
+
+  /// Boolean (represented as "#{t|f}\r\n" in RESP)
   Boolean(bool),
 }
 
 impl Value {
+  /// Serializes the value to a RESP-compatible string.
+  ///
+  /// # Returns
+  ///
+  /// A string containing the RESP-encoded representation of the value.
   pub fn serialize(&self) -> String {
     match self {
       Value::Null => "$-1\r\n".to_string(),
@@ -28,6 +53,15 @@ impl Value {
     }
   }
 
+  /// Converts a RESP value to a command and arguments.
+  ///
+  /// Expects an array where the first element is the command name
+  /// and subsequent elements are arguments.
+  ///
+  /// # Returns
+  ///
+  /// * `Some((String, Vec<String>))` - Command name (uppercase) and argument list
+  /// * `None` - If the value is not a valid command format
   pub fn to_command(&self) -> Option<(String, Vec<String>)> {
     if let Value::Array(elements) = self {
       if elements.is_empty() {

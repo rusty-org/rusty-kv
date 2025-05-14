@@ -1,42 +1,88 @@
+//! Configuration management module for the key-value server.
+//!
+//! This module provides functionality to load, parse, and access server configuration
+//! from TOML files, with sensible defaults when configuration is missing.
+
 use config::{self, Config, File};
 use log::error;
 use serde::{Deserialize, Serialize};
 
+/// Main configuration structure for the server.
+///
+/// Contains all server settings including network configuration and database settings.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Settings {
   pub server: Server,
 }
 
+/// Server-specific configuration settings.
+///
+/// Contains metadata about the server as well as network and database configurations.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Server {
+  /// Name of the server instance
   pub name: String,
+  /// Version of the server software
   pub version: String,
+  /// Description of the server instance
   pub description: String,
+  /// Network-related configuration
   pub network: Network,
+  /// Database-related configuration
   pub db: Database,
 }
 
+/// Network configuration settings.
+///
+/// Defines how the server interacts on the network, including host, port, and authentication.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Network {
+  /// Host address to bind the server to
   pub host: String,
+  /// Port number to listen on
   pub port: u16,
+  /// Username for root access
   pub root_user: String,
+  /// Password for root access
   pub root_password: String,
+  /// Username for regular access
   pub user: String,
+  /// Password for regular access
   pub password: String,
 }
 
+/// Database configuration settings.
+///
+/// Contains settings for database storage, backups, and performance options.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Database {
+  /// Path to the main database file
   pub path: String,
+  /// Path for backup database files
   pub backup_path: String,
+  /// Maximum size of the database in MB
   pub max_size: u32,
+  /// Interval between automatic backups in seconds
   pub backup_interval: u64,
+  /// Whether to enable database compression
   pub compression: bool,
+  /// Whether to enable detailed database operation logging
   pub enable_logging: bool,
 }
 
 impl Settings {
+  /// Creates a new Settings instance.
+  ///
+  /// Attempts to load settings from the specified configuration file.
+  /// Falls back to default settings if the file cannot be read or parsed.
+  ///
+  /// # Arguments
+  ///
+  /// * `filename` - Optional name of the configuration file to load
+  ///
+  /// # Returns
+  ///
+  /// A new Settings instance with either loaded or default configuration
   pub fn new<'a>(filename: impl Into<Option<&'a str>>) -> Self {
     let filename = filename.into();
 
@@ -87,6 +133,19 @@ impl Settings {
     }
   }
 
+  /// Gets a typed configuration value from a dot-notation path.
+  ///
+  /// Allows accessing nested configuration values with dot notation paths like
+  /// "server.network.host" and deserializes the value to the requested type.
+  ///
+  /// # Arguments
+  ///
+  /// * `key` - The dot-notation path to the desired configuration value
+  ///
+  /// # Returns
+  ///
+  /// * `Some(T)` - Successfully retrieved and deserialized value
+  /// * `None` - Value not found or type conversion failed
   pub fn get<T: serde::de::DeserializeOwned>(&self, key: &str) -> Option<T> {
     // First, serialize the entire settings object to a serde_json Value
     let settings_value = match serde_json::to_value(self) {

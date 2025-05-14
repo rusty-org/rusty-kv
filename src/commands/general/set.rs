@@ -1,10 +1,47 @@
+//! SET command implementation.
+//!
+//! Handles storing key-value pairs with optional modifiers (EX, PX, NX, XX).
+//! Requires authentication before executing.
+
 use crate::{resp::value::Value, storage::memory::MemoryStore, storage::memory::Store};
 use anyhow::{Result, anyhow};
 use log::debug;
 
+/// SET command handler.
+///
+/// Allows storing values with a given key. Supports Redis-compatible
+/// optional modifiers.
 pub struct SetCommand;
 
 impl SetCommand {
+  /// Executes the SET command.
+  ///
+  /// # Arguments
+  ///
+  /// * `args` - Command arguments (key, value, and optional modifiers)
+  /// * `store` - Memory store to operate on
+  ///
+  /// # Returns
+  ///
+  /// * `Ok(Value)` - Success response
+  /// * `Err` - Error if command fails or arguments are invalid
+  ///
+  /// # Optional Modifiers
+  ///
+  /// * `EX seconds` - Set expiration time in seconds
+  /// * `PX milliseconds` - Set expiration time in milliseconds
+  /// * `NX` - Only set key if it does not exist
+  /// * `XX` - Only set key if it already exists
+  ///
+  /// # Example
+  ///
+  /// ```
+  /// // Client sends: SET mykey myvalue EX 60
+  /// let result = SetCommand::execute(
+  ///     vec!["mykey".to_string(), "myvalue".to_string(), "EX".to_string(), "60".to_string()],
+  ///     store
+  /// ).await;
+  /// ```
   pub async fn execute(mut args: Vec<String>, store: MemoryStore) -> Result<Value> {
     if !store.is_authenticated() {
       return Err(anyhow!("Authentication required"));
