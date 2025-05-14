@@ -6,6 +6,14 @@ pub struct KvSet {
   data: HashSet<String>,
 }
 
+impl KvSet {
+  pub fn new() -> Self {
+    Self {
+      data: HashSet::new(),
+    }
+  }
+}
+
 impl Entity for KvSet {
   fn entity_type(&self) -> &'static str {
     "set"

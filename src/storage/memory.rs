@@ -1,18 +1,35 @@
 use std::{
   collections::HashMap,
-  sync::{Arc, Mutex},
+  sync::{Arc, Mutex, RwLock},
 };
 
-use log::warn;
+use log::{info, warn};
 
 use crate::resp::value::Value;
 use super::entities::Entities;
 
 #[derive(Clone)]
 pub struct MemoryStore {
+  // Global store for all users data, keyed by user credential hash
+  user_stores: Arc<RwLock<HashMap<String, UserStore>>>,
+  // Current user's credential hash (if authenticated)
+  current_user: Arc<RwLock<Option<String>>>,
+}
+
+// Represents a single user's data store
+#[derive(Clone, Debug)]
+pub struct UserStore {
   general_store: Arc<Mutex<HashMap<String, Value>>>,
-  acl_store: Arc<Mutex<HashMap<String, HashMap<String, Entities>>>>,
-  authenticated: Arc<Mutex<bool>>,
+  entities_store: Arc<Mutex<HashMap<String, Entities>>>,
+}
+
+impl UserStore {
+  fn new() -> Self {
+    Self {
+      general_store: Arc::new(Mutex::new(HashMap::new())),
+      entities_store: Arc::new(Mutex::new(HashMap::new())),
+    }
+  }
 }
 
 pub trait Store {
@@ -21,66 +38,222 @@ pub trait Store {
   async fn set(&self, key: &str, value: Value);
   async fn get(&self, key: &str) -> Option<Value>;
   async fn delete(&self, key: &str) -> Option<Value>;
+
+  // New methods for authentication
+  fn set_current_user(&self, user_hash: Option<String>);
+  fn get_current_user(&self) -> Option<String>;
+  fn is_authenticated(&self) -> bool;
+
+  // Entity methods
+  async fn create_entity(&self, entity_type: &str, name: &str) -> anyhow::Result<()>;
+  async fn entity_add(&self, entity_name: &str, key: &str, value: Value) -> anyhow::Result<()>;
+  async fn entity_get(&self, entity_name: &str, key: &str) -> anyhow::Result<Option<Value>>;
+  async fn entity_delete(&self, entity_name: &str, key: &str) -> anyhow::Result<Option<Value>>;
 }
 
 impl Store for MemoryStore {
   fn new() -> Self {
-    // @INFO Initialize the memory store
-    let acl_store = Arc::new(Mutex::new(HashMap::new()));
-    let general_store = Arc::new(Mutex::new(HashMap::new()));
-    let authenticated = Arc::new(Mutex::new(false));
-
-    // @INFO put the predefined entities inside the stores
-
+    info!("Initializing global memory store");
     Self {
-      general_store,
-      acl_store,
-      authenticated,
+      user_stores: Arc::new(RwLock::new(HashMap::new())),
+      current_user: Arc::new(RwLock::new(None)),
     }
+  }
+
+  fn set_current_user(&self, user_hash: Option<String>) {
+    let mut current_user = self.current_user.write().unwrap();
+    *current_user = user_hash;
+
+    // Initialize user store if it doesn't exist
+    if let Some(hash) = current_user.clone() {
+      let mut stores = self.user_stores.write().unwrap();
+      if !stores.contains_key(&hash) {
+        info!("Creating new store for user with hash: {}", hash);
+        stores.insert(hash, UserStore::new());
+      }
+    }
+  }
+
+  fn get_current_user(&self) -> Option<String> {
+    self.current_user.read().unwrap().clone()
+  }
+
+  fn is_authenticated(&self) -> bool {
+    self.current_user.read().unwrap().is_some()
   }
 
   async fn set(&self, key: &str, value: Value) {
-    if self.authenticated.lock().unwrap().eq(&false) {
-      warn!("User not authenticated, using shared storage");
-      let mut db = self.general_store.lock().unwrap();
-      if db.contains_key(key) {
-        warn!("Key {} already exists, overwriting value", key);
-        db.insert(key.to_string(), value);
-      } else {
-        db.insert(key.to_string(), value);
+    if let Some(user_hash) = self.get_current_user() {
+      let stores = self.user_stores.read().unwrap();
+      if let Some(user_store) = stores.get(&user_hash) {
+        let mut store = user_store.general_store.lock().unwrap();
+        store.insert(key.to_string(), value);
+        info!("Set key '{}' for authenticated user", key);
+        return;
       }
-    } else {
-      // @TODO handle acl storage
-      todo!()
     }
+
+    // Fallback to shared store for unauthenticated users
+    warn!("User not authenticated, using shared storage");
+    let mut stores = self.user_stores.write().unwrap();
+    let shared_store = stores.entry("shared".to_string()).or_insert_with(UserStore::new);
+    let mut store = shared_store.general_store.lock().unwrap();
+    store.insert(key.to_string(), value);
   }
 
   async fn get(&self, key: &str) -> Option<Value> {
-    if self.authenticated.lock().unwrap().eq(&false) {
-      warn!("User not authenticated, using shared storage");
-      let db = self.general_store.lock().unwrap();
-      match db.get(key) {
-        Some(value) => Some(value.clone()),
-        None => Some(Value::Null),
+    if let Some(user_hash) = self.get_current_user() {
+      let stores = self.user_stores.read().unwrap();
+      if let Some(user_store) = stores.get(&user_hash) {
+        let store = user_store.general_store.lock().unwrap();
+        if let Some(value) = store.get(key) {
+          return Some(value.clone());
+        }
       }
-    } else {
-      // @TODO handle acl storage
-      todo!()
     }
+
+    // Try shared store if not found in user store
+    let stores = self.user_stores.read().unwrap();
+    if let Some(shared_store) = stores.get("shared") {
+      let store = shared_store.general_store.lock().unwrap();
+      return store.get(key).cloned().or(Some(Value::Null));
+    }
+
+    Some(Value::Null)
   }
 
   async fn delete(&self, key: &str) -> Option<Value> {
-    if self.authenticated.lock().unwrap().eq(&false) {
-      warn!("User not authenticated, using shared storage");
-      let mut db = self.general_store.lock().unwrap();
-      let result = db.remove(key);
-      if result.is_none() {
-        warn!("Key {} not found, cannot delete", key);
+    if let Some(user_hash) = self.get_current_user() {
+      let stores = self.user_stores.read().unwrap();
+      if let Some(user_store) = stores.get(&user_hash) {
+        let mut store = user_store.general_store.lock().unwrap();
+        return store.remove(key);
       }
-      result
+    }
+
+    // Try shared store
+    let stores = self.user_stores.read().unwrap();
+    if let Some(shared_store) = stores.get("shared") {
+      let mut store = shared_store.general_store.lock().unwrap();
+      return store.remove(key);
+    }
+
+    None
+  }
+
+  async fn create_entity(&self, entity_type: &str, name: &str) -> anyhow::Result<()> {
+    let user_hash = self.get_current_user().unwrap_or_else(|| "shared".to_string());
+    let stores = self.user_stores.read().unwrap();
+
+    let user_store = stores.get(&user_hash).unwrap_or_else(|| {
+      panic!("User store not found for hash: {}", user_hash)
+    });
+
+    let mut entities = user_store.entities_store.lock().unwrap();
+
+    let entity = match entity_type.to_lowercase().as_str() {
+      "set" => Entities::Set(Arc::new(Mutex::new(super::entities::KvSet::new()))),
+      "hashmap" => Entities::HashMap(Arc::new(Mutex::new(super::entities::KvHashMap::new()))),
+      _ => return Err(anyhow::anyhow!("Unknown entity type: {}", entity_type)),
+    };
+
+    entities.insert(name.to_string(), entity);
+    Ok(())
+  }
+
+  async fn entity_add(&self, entity_name: &str, key: &str, value: Value) -> anyhow::Result<()> {
+    let user_hash = self.get_current_user().unwrap_or_else(|| "shared".to_string());
+    let stores = self.user_stores.read().unwrap();
+
+    let user_store = stores.get(&user_hash).unwrap_or_else(|| {
+      panic!("User store not found for hash: {}", user_hash)
+    });
+
+    let entities = user_store.entities_store.lock().unwrap();
+
+    if let Some(entity) = entities.get(entity_name) {
+      match entity {
+        Entities::Set(set) => {
+          let mut set = set.lock().unwrap();
+          // For HashSet, we insert the key as a string (no value needed)
+          if let Value::SimpleString(val) = &value {
+            set.insert(val.clone());
+          } else {
+            set.insert(key.to_string());
+          }
+        },
+        Entities::HashMap(hashmap) => {
+          let mut hashmap = hashmap.lock().unwrap();
+          hashmap.insert(key.to_string(), value);
+        },
+        _ => return Err(anyhow::anyhow!("Entity type not supported for this operation")),
+      }
+      Ok(())
     } else {
-      // @TODO handle acl storage
-      todo!()
+      Err(anyhow::anyhow!("Entity not found: {}", entity_name))
+    }
+  }
+
+  async fn entity_get(&self, entity_name: &str, key: &str) -> anyhow::Result<Option<Value>> {
+    let user_hash = self.get_current_user().unwrap_or_else(|| "shared".to_string());
+    let stores = self.user_stores.read().unwrap();
+
+    let user_store = stores.get(&user_hash).unwrap_or_else(|| {
+      panic!("User store not found for hash: {}", user_hash)
+    });
+
+    let entities = user_store.entities_store.lock().unwrap();
+
+    if let Some(entity) = entities.get(entity_name) {
+      match entity {
+        Entities::Set(set) => {
+          let set = set.lock().unwrap();
+          if set.contains(key) {
+            Ok(Some(Value::SimpleString(key.to_string())))
+          } else {
+            Ok(None)
+          }
+        },
+        Entities::HashMap(hashmap) => {
+          let hashmap = hashmap.lock().unwrap();
+          Ok(hashmap.get(key).cloned())
+        },
+        _ => Err(anyhow::anyhow!("Entity type not supported for this operation")),
+      }
+    } else {
+      Err(anyhow::anyhow!("Entity not found: {}", entity_name))
+    }
+  }
+
+  async fn entity_delete(&self, entity_name: &str, key: &str) -> anyhow::Result<Option<Value>> {
+    let user_hash = self.get_current_user().unwrap_or_else(|| "shared".to_string());
+    let stores = self.user_stores.read().unwrap();
+
+    let user_store = stores.get(&user_hash).unwrap_or_else(|| {
+      panic!("User store not found for hash: {}", user_hash)
+    });
+
+    let entities = user_store.entities_store.lock().unwrap();
+
+    if let Some(entity) = entities.get(entity_name) {
+      match entity {
+        Entities::Set(set) => {
+          let mut set = set.lock().unwrap();
+          let removed = set.remove(key);
+          if removed {
+            Ok(Some(Value::SimpleString(key.to_string())))
+          } else {
+            Ok(None)
+          }
+        },
+        Entities::HashMap(hashmap) => {
+          let mut hashmap = hashmap.lock().unwrap();
+          Ok(hashmap.remove(key))
+        },
+        _ => Err(anyhow::anyhow!("Entity type not supported for this operation")),
+      }
+    } else {
+      Err(anyhow::anyhow!("Entity not found: {}", entity_name))
     }
   }
 }

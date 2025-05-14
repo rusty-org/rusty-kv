@@ -1,6 +1,6 @@
 // @NOTE External dependencies
 use log::{error, info, warn};
-use tokio::{net::TcpListener, task};
+use tokio::net::TcpListener;
 
 // @NOTE Local dependencies
 mod commands;
@@ -10,6 +10,7 @@ mod storage;
 mod utils;
 
 use storage::db::InternalDB;
+use storage::memory::{MemoryStore, Store};
 use utils::{logger::Logger, network::NetworkUtils, settings::Settings};
 
 #[tokio::main(flavor = "multi_thread")]
@@ -22,6 +23,10 @@ async fn main() {
   info!("Loaded settings from config.toml");
 
   warn!("Starting Redis clone server...");
+
+  // Initialize the global memory store
+  let memory_store = MemoryStore::new();
+  info!("Initialized global memory store");
 
   warn!("Initializing internal database...");
   let internal_db = InternalDB::new(&settings);
@@ -57,8 +62,12 @@ async fn main() {
     let stream = listener.accept().await;
     match stream {
       Ok((stream, addr)) => {
+        // Clone the store and db references for each connection
+        let connection_store = memory_store.clone();
+        let connection_db = internal_db.clone();
+
         tokio::spawn(async move {
-          if let Err(e) = NetworkUtils::accept_connection(stream).await {
+          if let Err(e) = NetworkUtils::accept_connection(stream, connection_store, connection_db).await {
             error!("Error handling connection: {}", e);
           }
         });
