@@ -47,31 +47,17 @@ impl CommandExecutor {
       // @INFO ACL commands
       "AUTH" => AuthCommand::execute(args, self.store.to_owned(), self.db.clone()).await,
 
-      // Entity commands (these would need to be implemented)
-      "HSET" => {
-        // Example of entity handling
-        if args.len() < 3 {
-          return Err(anyhow!("HSET requires entity name, key and value"));
+      // New entity type creation command
+      "CREATE" => {
+        if args.len() < 2 {
+          return Err(anyhow!("CREATE requires entity type and name"));
         }
-        let entity_name = &args[0];
-        let key = &args[1];
-        let value = Value::SimpleString(args[2].clone());
+        let entity_type = &args[0]; // "hashmap", "set", etc.
+        let entity_name = &args[1];
 
-       // Ensure the user is authenticated before allowing HSET
-        if !self.store.is_authenticated() {
-          return Err(anyhow!("Authentication required for HSET command"));
-        }
-
-        // Try to add to existing entity
-        match self.store.entity_add(entity_name, key, value.clone()).await {
-          Ok(_) => Ok(Value::SimpleString("OK".to_string())),
-          // If entity doesn't exist, create it first
-          Err(_) => {
-            self.store.create_entity("hashmap", entity_name).await?;
-            self.store.entity_add(entity_name, key, value).await?;
-            Ok(Value::SimpleString("OK".to_string()))
-          }
-        }
+        // Create the entity
+        self.store.create_entity(entity_type, entity_name).await?;
+        Ok(Value::SimpleString("OK".to_string()))
       },
 
       _ => Err(anyhow!("Unknown command: {}", command)),
