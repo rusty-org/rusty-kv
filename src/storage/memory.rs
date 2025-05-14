@@ -84,6 +84,7 @@ impl Store for MemoryStore {
 
   async fn set(&self, key: &str, value: Value) {
     if let Some(user_hash) = self.get_current_user() {
+      // User is authenticated, store in their private store
       let stores = self.user_stores.read().unwrap();
       if let Some(user_store) = stores.get(&user_hash) {
         let mut store = user_store.general_store.lock().unwrap();
@@ -93,7 +94,7 @@ impl Store for MemoryStore {
       }
     }
 
-    // Fallback to shared store for unauthenticated users
+    // If no authentication, store in shared space with clear indicator
     warn!("User not authenticated, using shared storage");
     let mut stores = self.user_stores.write().unwrap();
     let shared_store = stores.entry("shared".to_string()).or_insert_with(UserStore::new);
@@ -103,6 +104,7 @@ impl Store for MemoryStore {
 
   async fn get(&self, key: &str) -> Option<Value> {
     if let Some(user_hash) = self.get_current_user() {
+      // Check user's private store
       let stores = self.user_stores.read().unwrap();
       if let Some(user_store) = stores.get(&user_hash) {
         let store = user_store.general_store.lock().unwrap();
@@ -110,32 +112,49 @@ impl Store for MemoryStore {
           return Some(value.clone());
         }
       }
+
+      // For authenticated users, only check shared store if not found in their store
+      let stores = self.user_stores.read().unwrap();
+      if let Some(shared_store) = stores.get("shared") {
+        let store = shared_store.general_store.lock().unwrap();
+        return store.get(key).cloned();
+      }
+    } else {
+      // Unauthenticated users can only access shared store
+      let stores = self.user_stores.read().unwrap();
+      if let Some(shared_store) = stores.get("shared") {
+        let store = shared_store.general_store.lock().unwrap();
+        return store.get(key).cloned();
+      }
     }
 
-    // Try shared store if not found in user store
-    let stores = self.user_stores.read().unwrap();
-    if let Some(shared_store) = stores.get("shared") {
-      let store = shared_store.general_store.lock().unwrap();
-      return store.get(key).cloned().or(Some(Value::Null));
-    }
-
-    Some(Value::Null)
+    None
   }
 
   async fn delete(&self, key: &str) -> Option<Value> {
     if let Some(user_hash) = self.get_current_user() {
+      // Check user's private store first
       let stores = self.user_stores.read().unwrap();
       if let Some(user_store) = stores.get(&user_hash) {
         let mut store = user_store.general_store.lock().unwrap();
+        if let Some(value) = store.remove(key) {
+          return Some(value);
+        }
+      }
+
+      // For authenticated users, check shared store if not found in their store
+      let stores = self.user_stores.read().unwrap();
+      if let Some(shared_store) = stores.get("shared") {
+        let mut store = shared_store.general_store.lock().unwrap();
         return store.remove(key);
       }
-    }
-
-    // Try shared store
-    let stores = self.user_stores.read().unwrap();
-    if let Some(shared_store) = stores.get("shared") {
-      let mut store = shared_store.general_store.lock().unwrap();
-      return store.remove(key);
+    } else {
+      // Unauthenticated users can only access shared store
+      let stores = self.user_stores.read().unwrap();
+      if let Some(shared_store) = stores.get("shared") {
+        let mut store = shared_store.general_store.lock().unwrap();
+        return store.remove(key);
+      }
     }
 
     None

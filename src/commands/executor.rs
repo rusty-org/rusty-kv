@@ -57,6 +57,11 @@ impl CommandExecutor {
         let key = &args[1];
         let value = Value::SimpleString(args[2].clone());
 
+       // Ensure the user is authenticated before allowing HSET
+        if !self.store.is_authenticated() {
+          return Err(anyhow!("Authentication required for HSET command"));
+        }
+
         // Try to add to existing entity
         match self.store.entity_add(entity_name, key, value.clone()).await {
           Ok(_) => Ok(Value::SimpleString("OK".to_string())),

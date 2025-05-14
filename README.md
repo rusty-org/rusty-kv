@@ -64,14 +64,10 @@ By default, the server listens on `127.0.0.1:6379`.
 You can use the standard Redis CLI or any Redis client to connect to the server:
 
 ```bash
-# debian/ubuntu
-sudo apt-get install redis-tools
-
-# macOS (using Homebrew)
-brew install redis
-
 # Connect to the server
-redis-cli -h localhost -p 6379
+rustykv-cli -h localhost -p 6379
+# or
+rustykv-cli -url kv://user:password@localhost:6379
 
 # Or using socat
 socat - TCP:localhost:6379
