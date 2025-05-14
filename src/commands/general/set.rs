@@ -6,6 +6,10 @@ pub struct SetCommand;
 
 impl SetCommand {
   pub async fn execute(mut args: Vec<String>, store: MemoryStore) -> Result<Value> {
+    if !store.is_authenticated() {
+      return Err(anyhow!("Authentication required"));
+    }
+
     if args.len() < 2 {
       return Err(anyhow!("SET requires a key and a value"));
     }
@@ -47,7 +51,7 @@ impl SetCommand {
     // Set the value in the store
     store
       .set(key.as_str(), Value::SimpleString(value.clone()))
-      .await;
+      .await?;
     debug!("Set key {} to value {}", key, value);
 
     Ok(Value::SimpleString("OK".to_string()))

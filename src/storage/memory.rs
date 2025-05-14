@@ -12,8 +12,6 @@ use super::entities::Entities;
 pub struct MemoryStore {
   // Store for authenticated users, keyed by user credential hash
   auth_stores: Arc<RwLock<HashMap<String, UserStore>>>,
-  // Store for unauthenticated sessions (shared)
-  unauth_store: Arc<RwLock<UserStore>>,
   // Current user's credential hash (if authenticated)
   current_user: Arc<RwLock<Option<String>>>,
 }
@@ -55,10 +53,9 @@ pub trait Store {
 
 impl Store for MemoryStore {
   fn new() -> Self {
-    info!("Initializing global memory store");
+    info!("Initializing memory store for authenticated users only");
     Self {
       auth_stores: Arc::new(RwLock::new(HashMap::new())),
-      unauth_store: Arc::new(RwLock::new(UserStore::new())),
       current_user: Arc::new(RwLock::new(None)),
     }
   }
@@ -86,6 +83,10 @@ impl Store for MemoryStore {
   }
 
   async fn set(&self, key: &str, value: Value) -> anyhow::Result<()> {
+    if !self.is_authenticated() {
+      return Err(anyhow::anyhow!("Authentication required"));
+    }
+
     // Check if this is an entity operation (key contains ".")
     if key.contains(".") {
       let parts: Vec<&str> = key.splitn(2, '.').collect();
@@ -99,52 +100,34 @@ impl Store for MemoryStore {
     }
 
     // For regular key-value operation, wrap in a HashMap entity
-    if self.is_authenticated() {
-      let user_hash = self.get_current_user().unwrap();
-      let mut stores = self.auth_stores.write().unwrap();
-      let user_store = stores.get_mut(&user_hash).unwrap();
+    let user_hash = self.get_current_user().unwrap();
+    let mut stores = self.auth_stores.write().unwrap();
+    let user_store = stores.get_mut(&user_hash).unwrap();
 
-      let mut entities = user_store.entities.lock().unwrap();
+    let mut entities = user_store.entities.lock().unwrap();
 
-      // Create a "default" map if it doesn't exist
-      if !entities.contains_key("default") {
-        entities.insert(
-          "default".to_string(),
-          Entities::HashMap(Arc::new(Mutex::new(super::entities::KvHashMap::new())))
-        );
-      }
+    // Create a "default" map if it doesn't exist
+    if !entities.contains_key("default") {
+      entities.insert(
+        "default".to_string(),
+        Entities::HashMap(Arc::new(Mutex::new(super::entities::KvHashMap::new())))
+      );
+    }
 
-      if let Some(Entities::HashMap(map)) = entities.get("default") {
-        let mut map = map.lock().unwrap();
-        map.insert(key.to_string(), value);
-        Ok(())
-      } else {
-        Err(anyhow::anyhow!("Default map corrupted"))
-      }
+    if let Some(Entities::HashMap(map)) = entities.get("default") {
+      let mut map = map.lock().unwrap();
+      map.insert(key.to_string(), value);
+      Ok(())
     } else {
-      // Unauthenticated users use the unauth store
-      let mut unauth_store = self.unauth_store.write().unwrap();
-      let mut entities = unauth_store.entities.lock().unwrap();
-
-      // Create a "default" map if it doesn't exist
-      if !entities.contains_key("default") {
-        entities.insert(
-          "default".to_string(),
-          Entities::HashMap(Arc::new(Mutex::new(super::entities::KvHashMap::new())))
-        );
-      }
-
-      if let Some(Entities::HashMap(map)) = entities.get("default") {
-        let mut map = map.lock().unwrap();
-        map.insert(key.to_string(), value);
-        Ok(())
-      } else {
-        Err(anyhow::anyhow!("Default map corrupted"))
-      }
+      Err(anyhow::anyhow!("Default map corrupted"))
     }
   }
 
   async fn get(&self, key: &str) -> Option<Value> {
+    if !self.is_authenticated() {
+      return None;
+    }
+
     // Check if this is an entity operation (key contains ".")
     if key.contains(".") {
       let parts: Vec<&str> = key.splitn(2, '.').collect();
@@ -161,35 +144,26 @@ impl Store for MemoryStore {
     }
 
     // For regular key-value operation, retrieve from default HashMap
-    if self.is_authenticated() {
-      let user_hash = self.get_current_user().unwrap();
-      let stores = self.auth_stores.read().unwrap();
+    let user_hash = self.get_current_user().unwrap();
+    let stores = self.auth_stores.read().unwrap();
 
-      if let Some(user_store) = stores.get(&user_hash) {
-        let entities = user_store.entities.lock().unwrap();
-
-        if let Some(Entities::HashMap(map)) = entities.get("default") {
-          let map = map.lock().unwrap();
-          return map.get(key).cloned();
-        }
-      }
-
-      None
-    } else {
-      // Unauthenticated users can only access unauth store
-      let unauth_store = self.unauth_store.read().unwrap();
-      let entities = unauth_store.entities.lock().unwrap();
+    if let Some(user_store) = stores.get(&user_hash) {
+      let entities = user_store.entities.lock().unwrap();
 
       if let Some(Entities::HashMap(map)) = entities.get("default") {
         let map = map.lock().unwrap();
         return map.get(key).cloned();
       }
-
-      None
     }
+
+    None
   }
 
   async fn delete(&self, key: &str) -> Option<Value> {
+    if !self.is_authenticated() {
+      return None;
+    }
+
     // Check if this is an entity operation (key contains ".")
     if key.contains(".") {
       let parts: Vec<&str> = key.splitn(2, '.').collect();
@@ -206,177 +180,100 @@ impl Store for MemoryStore {
     }
 
     // For regular key-value operation
-    if self.is_authenticated() {
-      let user_hash = self.get_current_user().unwrap();
-      let stores = self.auth_stores.read().unwrap();
+    let user_hash = self.get_current_user().unwrap();
+    let stores = self.auth_stores.read().unwrap();
 
-      if let Some(user_store) = stores.get(&user_hash) {
-        let entities = user_store.entities.lock().unwrap();
-
-        if let Some(Entities::HashMap(map)) = entities.get("default") {
-          let mut map = map.lock().unwrap();
-          return map.remove(key);
-        }
-      }
-
-      None
-    } else {
-      // Unauthenticated users use unauth store
-      let unauth_store = self.unauth_store.read().unwrap();
-      let entities = unauth_store.entities.lock().unwrap();
+    if let Some(user_store) = stores.get(&user_hash) {
+      let entities = user_store.entities.lock().unwrap();
 
       if let Some(Entities::HashMap(map)) = entities.get("default") {
         let mut map = map.lock().unwrap();
         return map.remove(key);
       }
-
-      None
     }
+
+    None
   }
 
   async fn create_entity(&self, entity_type: &str, name: &str) -> anyhow::Result<()> {
+    if !self.is_authenticated() {
+      return Err(anyhow::anyhow!("Authentication required"));
+    }
+
     let entity = match entity_type.to_lowercase().as_str() {
       "set" => Entities::Set(Arc::new(Mutex::new(super::entities::KvSet::new()))),
       "hashmap" => Entities::HashMap(Arc::new(Mutex::new(super::entities::KvHashMap::new()))),
       _ => return Err(anyhow::anyhow!("Unknown entity type: {}", entity_type)),
     };
 
-    if self.is_authenticated() {
-      let user_hash = self.get_current_user().unwrap();
-      let stores = self.auth_stores.read().unwrap();
+    let user_hash = self.get_current_user().unwrap();
+    let stores = self.auth_stores.read().unwrap();
 
-      if let Some(user_store) = stores.get(&user_hash) {
-        let mut entities = user_store.entities.lock().unwrap();
-        entities.insert(name.to_string(), entity);
-        Ok(())
-      } else {
-        Err(anyhow::anyhow!("User store not found"))
-      }
-    } else {
-      // Unauthenticated users use unauth store
-      let unauth_store = self.unauth_store.read().unwrap();
-      let mut entities = unauth_store.entities.lock().unwrap();
+    if let Some(user_store) = stores.get(&user_hash) {
+      let mut entities = user_store.entities.lock().unwrap();
       entities.insert(name.to_string(), entity);
       Ok(())
+    } else {
+      Err(anyhow::anyhow!("User store not found"))
     }
   }
 
   async fn entity_add(&self, entity_name: &str, key: &str, value: Value) -> anyhow::Result<()> {
-    if self.is_authenticated() {
-      let user_hash = self.get_current_user().unwrap();
+    if !self.is_authenticated() {
+      return Err(anyhow::anyhow!("Authentication required"));
+    }
 
-      // Check if entity exists
-      let entity_exists = {
-        let stores = self.auth_stores.read().unwrap();
-        let user_store = stores.get(&user_hash).ok_or_else(|| anyhow::anyhow!("User store not found"))?;
-        let entities = user_store.entities.lock().unwrap();
-        entities.contains_key(entity_name)
-      };
+    let user_hash = self.get_current_user().unwrap();
 
-      // Create entity if it doesn't exist
-      if !entity_exists {
-        self.create_entity("hashmap", entity_name).await?;
-      }
-
-      // Now perform the operation
+    // Check if entity exists
+    let entity_exists = {
       let stores = self.auth_stores.read().unwrap();
       let user_store = stores.get(&user_hash).ok_or_else(|| anyhow::anyhow!("User store not found"))?;
       let entities = user_store.entities.lock().unwrap();
+      entities.contains_key(entity_name)
+    };
 
-      if let Some(entity) = entities.get(entity_name) {
-        match entity {
-          Entities::Set(set) => {
-            let mut set = set.lock().unwrap();
-            if let Value::SimpleString(val) = &value {
-              set.insert(val.clone());
-            } else {
-              set.insert(key.to_string());
-            }
-          },
-          Entities::HashMap(hashmap) => {
-            let mut hashmap = hashmap.lock().unwrap();
-            hashmap.insert(key.to_string(), value);
-          },
-          _ => return Err(anyhow::anyhow!("Entity type not supported for this operation")),
-        }
-      }
-
-      Ok(())
-    } else {
-      // Unauthenticated users use unauth store
-
-      // Check if entity exists
-      let entity_exists = {
-        let unauth_store = self.unauth_store.read().unwrap();
-        let entities = unauth_store.entities.lock().unwrap();
-        entities.contains_key(entity_name)
-      };
-
-      // Create entity if it doesn't exist
-      if !entity_exists {
-        self.create_entity("hashmap", entity_name).await?;
-      }
-
-      // Now perform the operation
-      let unauth_store = self.unauth_store.read().unwrap();
-      let entities = unauth_store.entities.lock().unwrap();
-
-      if let Some(entity) = entities.get(entity_name) {
-        match entity {
-          Entities::Set(set) => {
-            let mut set = set.lock().unwrap();
-            if let Value::SimpleString(val) = &value {
-              set.insert(val.clone());
-            } else {
-              set.insert(key.to_string());
-            }
-          },
-          Entities::HashMap(hashmap) => {
-            let mut hashmap = hashmap.lock().unwrap();
-            hashmap.insert(key.to_string(), value);
-          },
-          _ => return Err(anyhow::anyhow!("Entity type not supported for this operation")),
-        }
-      }
-
-      Ok(())
+    // Create entity if it doesn't exist
+    if !entity_exists {
+      self.create_entity("hashmap", entity_name).await?;
     }
+
+    // Now perform the operation
+    let stores = self.auth_stores.read().unwrap();
+    let user_store = stores.get(&user_hash).ok_or_else(|| anyhow::anyhow!("User store not found"))?;
+    let entities = user_store.entities.lock().unwrap();
+
+    if let Some(entity) = entities.get(entity_name) {
+      match entity {
+        Entities::Set(set) => {
+          let mut set = set.lock().unwrap();
+          if let Value::SimpleString(val) = &value {
+            set.insert(val.clone());
+          } else {
+            set.insert(key.to_string());
+          }
+        },
+        Entities::HashMap(hashmap) => {
+          let mut hashmap = hashmap.lock().unwrap();
+          hashmap.insert(key.to_string(), value);
+        },
+        _ => return Err(anyhow::anyhow!("Entity type not supported for this operation")),
+      }
+    }
+
+    Ok(())
   }
 
   async fn entity_get(&self, entity_name: &str, key: &str) -> anyhow::Result<Option<Value>> {
-    if self.is_authenticated() {
-      let user_hash = self.get_current_user().unwrap();
-      let stores = self.auth_stores.read().unwrap();
+    if !self.is_authenticated() {
+      return Err(anyhow::anyhow!("Authentication required"));
+    }
 
-      if let Some(user_store) = stores.get(&user_hash) {
-        let entities = user_store.entities.lock().unwrap();
+    let user_hash = self.get_current_user().unwrap();
+    let stores = self.auth_stores.read().unwrap();
 
-        if let Some(entity) = entities.get(entity_name) {
-          match entity {
-            Entities::Set(set) => {
-              let set = set.lock().unwrap();
-              if set.contains(key) {
-                Ok(Some(Value::SimpleString(key.to_string())))
-              } else {
-                Ok(None)
-              }
-            },
-            Entities::HashMap(hashmap) => {
-              let hashmap = hashmap.lock().unwrap();
-              Ok(hashmap.get(key).cloned())
-            },
-            _ => Err(anyhow::anyhow!("Entity type not supported for this operation")),
-          }
-        } else {
-          Err(anyhow::anyhow!("Entity not found: {}", entity_name))
-        }
-      } else {
-        Err(anyhow::anyhow!("User store not found"))
-      }
-    } else {
-      // Unauthenticated users use unauth store
-      let unauth_store = self.unauth_store.read().unwrap();
-      let entities = unauth_store.entities.lock().unwrap();
+    if let Some(user_store) = stores.get(&user_hash) {
+      let entities = user_store.entities.lock().unwrap();
 
       if let Some(entity) = entities.get(entity_name) {
         match entity {
@@ -397,44 +294,21 @@ impl Store for MemoryStore {
       } else {
         Err(anyhow::anyhow!("Entity not found: {}", entity_name))
       }
+    } else {
+      Err(anyhow::anyhow!("User store not found"))
     }
   }
 
   async fn entity_delete(&self, entity_name: &str, key: &str) -> anyhow::Result<Option<Value>> {
-    if self.is_authenticated() {
-      let user_hash = self.get_current_user().unwrap();
-      let stores = self.auth_stores.read().unwrap();
+    if !self.is_authenticated() {
+      return Err(anyhow::anyhow!("Authentication required"));
+    }
 
-      if let Some(user_store) = stores.get(&user_hash) {
-        let entities = user_store.entities.lock().unwrap();
+    let user_hash = self.get_current_user().unwrap();
+    let stores = self.auth_stores.read().unwrap();
 
-        if let Some(entity) = entities.get(entity_name) {
-          match entity {
-            Entities::Set(set) => {
-              let mut set = set.lock().unwrap();
-              let removed = set.remove(key);
-              if removed {
-                Ok(Some(Value::SimpleString(key.to_string())))
-              } else {
-                Ok(None)
-              }
-            },
-            Entities::HashMap(hashmap) => {
-              let mut hashmap = hashmap.lock().unwrap();
-              Ok(hashmap.remove(key))
-            },
-            _ => Err(anyhow::anyhow!("Entity type not supported for this operation")),
-          }
-        } else {
-          Err(anyhow::anyhow!("Entity not found: {}", entity_name))
-        }
-      } else {
-        Err(anyhow::anyhow!("User store not found"))
-      }
-    } else {
-      // Unauthenticated users use unauth store
-      let unauth_store = self.unauth_store.read().unwrap();
-      let entities = unauth_store.entities.lock().unwrap();
+    if let Some(user_store) = stores.get(&user_hash) {
+      let entities = user_store.entities.lock().unwrap();
 
       if let Some(entity) = entities.get(entity_name) {
         match entity {
@@ -456,6 +330,8 @@ impl Store for MemoryStore {
       } else {
         Err(anyhow::anyhow!("Entity not found: {}", entity_name))
       }
+    } else {
+      Err(anyhow::anyhow!("User store not found"))
     }
   }
 }

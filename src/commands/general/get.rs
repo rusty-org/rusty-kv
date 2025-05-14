@@ -6,6 +6,10 @@ pub struct GetCommand;
 
 impl GetCommand {
   pub async fn execute(args: Vec<String>, store: MemoryStore) -> Result<Value> {
+    if !store.is_authenticated() {
+      return Err(anyhow!("Authentication required"));
+    }
+
     if args.is_empty() {
       return Err(anyhow!("GET requires a key"));
     }
