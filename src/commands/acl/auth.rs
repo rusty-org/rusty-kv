@@ -7,7 +7,10 @@ use anyhow::{Result, anyhow};
 use log::{info, warn};
 use sha3::{Digest, Keccak256};
 
-use crate::{resp::value::Value, storage::{db::InternalDB, memory::MemoryStore, memory::Store}};
+use crate::{
+  resp::value::Value,
+  storage::{db::InternalDB, memory::MemoryStore, memory::Store},
+};
 
 /// Authentication command handler.
 ///

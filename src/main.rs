@@ -81,7 +81,9 @@ async fn main() {
 
         // Spawn a new task to handle the connection
         tokio::spawn(async move {
-          if let Err(e) = NetworkUtils::accept_connection(stream, connection_store, connection_db).await {
+          if let Err(e) =
+            NetworkUtils::accept_connection(stream, connection_store, connection_db).await
+          {
             error!("Error handling connection: {}", e);
           }
         });

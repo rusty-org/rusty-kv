@@ -8,11 +8,7 @@ use log::info;
 
 use crate::{
   resp::value::Value,
-  storage::{
-    db::InternalDB,
-    memory::MemoryStore,
-    memory::Store
-  }
+  storage::{db::InternalDB, memory::MemoryStore, memory::Store},
 };
 
 use super::{
@@ -71,8 +67,15 @@ impl CommandExecutor {
   /// ```
   pub async fn execute(&self, command: &str, args: Vec<String>) -> Result<Value> {
     // Log command with auth status
-    let auth_status = if self.store.is_authenticated() { "authenticated" } else { "unauthenticated" };
-    info!("Executing command '{}' ({} mode) with args: {:?}", command, auth_status, args);
+    let auth_status = if self.store.is_authenticated() {
+      "authenticated"
+    } else {
+      "unauthenticated"
+    };
+    info!(
+      "Executing command '{}' ({} mode) with args: {:?}",
+      command, auth_status, args
+    );
 
     match command {
       // @INFO Utility commands
@@ -99,7 +102,7 @@ impl CommandExecutor {
         // Create the entity
         self.store.create_entity(entity_type, entity_name).await?;
         Ok(Value::SimpleString("OK".to_string()))
-      },
+      }
 
       _ => Err(anyhow!("Unknown command: {}", command)),
     }

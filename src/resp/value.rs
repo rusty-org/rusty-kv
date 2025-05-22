@@ -3,7 +3,6 @@
 //! Defines the different value types that can be serialized and deserialized
 //! according to the RESP specification.
 
-
 /// Enum representing the different RESP value types.
 #[derive(Clone, Debug)]
 pub enum Value {

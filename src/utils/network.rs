@@ -32,7 +32,11 @@ impl NetworkUtils {
   ///
   /// * `Ok(())` - Connection was handled successfully
   /// * `Err(...)` - An error occurred during connection handling
-  pub async fn accept_connection(stream: TcpStream, store: MemoryStore, db: InternalDB) -> Result<()> {
+  pub async fn accept_connection(
+    stream: TcpStream,
+    store: MemoryStore,
+    db: InternalDB,
+  ) -> Result<()> {
     let peer_addr = stream.peer_addr()?;
     info!("Handling connection from: {}", peer_addr);
 

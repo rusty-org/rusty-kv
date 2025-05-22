@@ -10,8 +10,8 @@ use std::{
 
 use log::info;
 
+use super::entities::{Entities, KvHashMap};
 use crate::resp::value::Value;
-use super::entities::Entities;
 
 /// Main in-memory storage structure.
 ///
@@ -222,7 +222,7 @@ impl Store for MemoryStore {
     if !entities.contains_key("default") {
       entities.insert(
         "default".to_string(),
-        Entities::HashMap(Arc::new(Mutex::new(super::entities::KvHashMap::new())))
+        Entities::HashMap(Arc::new(Mutex::new(KvHashMap::new()))),
       );
     }
 
@@ -254,7 +254,7 @@ impl Store for MemoryStore {
         // Attempt to get from entity
         return match self.entity_get(entity_name, entity_key).await {
           Ok(value) => value,
-          Err(_) => None
+          Err(_) => None,
         };
       }
     }
@@ -294,7 +294,7 @@ impl Store for MemoryStore {
         // Attempt to delete from entity
         return match self.entity_delete(entity_name, entity_key).await {
           Ok(value) => value,
-          Err(_) => None
+          Err(_) => None,
         };
       }
     }
@@ -330,7 +330,9 @@ impl Store for MemoryStore {
     let entity = match entity_type.to_lowercase().as_str() {
       "set" => Entities::Set(Arc::new(Mutex::new(super::entities::KvSet::new()))),
       "hashmap" => Entities::HashMap(Arc::new(Mutex::new(super::entities::KvHashMap::new()))),
-      "linkedlist" => Entities::LinkedList(Arc::new(Mutex::new(super::entities::KvLinkedList::new()))),
+      "linkedlist" => {
+        Entities::LinkedList(Arc::new(Mutex::new(super::entities::KvLinkedList::new())))
+      }
       _ => return Err(anyhow::anyhow!("Unknown entity type: {}", entity_type)),
     };
 
@@ -359,7 +361,9 @@ impl Store for MemoryStore {
     // Check if entity exists
     let entity_exists = {
       let stores = self.auth_stores.read().unwrap();
-      let user_store = stores.get(&user_hash).ok_or_else(|| anyhow::anyhow!("User store not found"))?;
+      let user_store = stores
+        .get(&user_hash)
+        .ok_or_else(|| anyhow::anyhow!("User store not found"))?;
       let entities = user_store.entities.lock().unwrap();
       entities.contains_key(entity_name)
     };
@@ -371,7 +375,9 @@ impl Store for MemoryStore {
 
     // Now perform the operation
     let stores = self.auth_stores.read().unwrap();
-    let user_store = stores.get(&user_hash).ok_or_else(|| anyhow::anyhow!("User store not found"))?;
+    let user_store = stores
+      .get(&user_hash)
+      .ok_or_else(|| anyhow::anyhow!("User store not found"))?;
     let entities = user_store.entities.lock().unwrap();
 
     if let Some(entity) = entities.get(entity_name) {
@@ -383,11 +389,11 @@ impl Store for MemoryStore {
           } else {
             set.insert(key.to_string());
           }
-        },
+        }
         Entities::HashMap(hashmap) => {
           let mut hashmap = hashmap.lock().unwrap();
           hashmap.insert(key.to_string(), value);
-        },
+        }
         Entities::LinkedList(list) => {
           let mut list = list.lock().unwrap();
           if let Value::SimpleString(val) = &value {
@@ -396,8 +402,12 @@ impl Store for MemoryStore {
             // Use key as fallback if value isn't a SimpleString
             list.push_back(key.to_string());
           }
-        },
-        _ => return Err(anyhow::anyhow!("Entity type not supported for this operation")),
+        }
+        _ => {
+          return Err(anyhow::anyhow!(
+            "Entity type not supported for this operation"
+          ));
+        }
       }
     }
 
@@ -425,11 +435,11 @@ impl Store for MemoryStore {
             } else {
               Ok(None)
             }
-          },
+          }
           Entities::HashMap(hashmap) => {
             let hashmap = hashmap.lock().unwrap();
             Ok(hashmap.get(key).cloned())
-          },
+          }
           Entities::LinkedList(list) => {
             let list = list.lock().unwrap();
             // For linked list, we need to iterate to find the key
@@ -439,8 +449,10 @@ impl Store for MemoryStore {
               }
             }
             Ok(None)
-          },
-          _ => Err(anyhow::anyhow!("Entity type not supported for this operation")),
+          }
+          _ => Err(anyhow::anyhow!(
+            "Entity type not supported for this operation"
+          )),
         }
       } else {
         Err(anyhow::anyhow!("Entity not found: {}", entity_name))
@@ -472,11 +484,11 @@ impl Store for MemoryStore {
             } else {
               Ok(None)
             }
-          },
+          }
           Entities::HashMap(hashmap) => {
             let mut hashmap = hashmap.lock().unwrap();
             Ok(hashmap.remove(key))
-          },
+          }
           Entities::LinkedList(list) => {
             let mut list = list.lock().unwrap();
             // For linked list, we need a stable approach to remove the key
@@ -501,8 +513,10 @@ impl Store for MemoryStore {
             } else {
               Ok(None)
             }
-          },
-          _ => Err(anyhow::anyhow!("Entity type not supported for this operation")),
+          }
+          _ => Err(anyhow::anyhow!(
+            "Entity type not supported for this operation"
+          )),
         }
       } else {
         Err(anyhow::anyhow!("Entity not found: {}", entity_name))

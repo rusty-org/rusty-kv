@@ -20,21 +20,21 @@ pub type KvLinkedList = LinkedList<String>;
 /// Enum representing different types of data structures for storage.
 #[derive(Debug)]
 pub enum Entities {
-    /// A set of unique string values.
-    Set(Arc<Mutex<KvSet>>),
+  /// A set of unique string values.
+  Set(Arc<Mutex<KvSet>>),
 
-    /// A map of string keys to RESP values.
-    HashMap(Arc<Mutex<KvHashMap>>),
+  /// A map of string keys to RESP values.
+  HashMap(Arc<Mutex<KvHashMap>>),
 
-    /// A linked list of string values.
-    LinkedList(Arc<Mutex<KvLinkedList>>),
+  /// A linked list of string values.
+  LinkedList(Arc<Mutex<KvLinkedList>>),
 
-    /// A hash set (placeholder for future implementation).
-    HashSet,
+  /// A hash set (placeholder for future implementation).
+  HashSet,
 
-    /// A list (placeholder for future implementation).
-    List,
+  /// A list (placeholder for future implementation).
+  List,
 
-    /// A queue (placeholder for future implementation).
-    Queue,
+  /// A queue (placeholder for future implementation).
+  Queue,
 }
