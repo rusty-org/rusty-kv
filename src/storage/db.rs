@@ -20,11 +20,11 @@ use crate::utils::settings::Settings;
 #[derive(Clone, Debug)]
 pub struct InternalDB {
   /// Path to the SQLite database file
-  pub path: String,
+  pub _path: String,
   /// Path for database backups
-  pub backup_path: String,
+  pub _backup_path: String,
   /// Interval between automatic backups in seconds
-  pub backup_interval: u64,
+  pub _backup_interval: u64,
   /// Connection pool for the SQLite database
   pub pool: Arc<r2d2::Pool<SqliteConnectionManager>>,
 }
@@ -79,9 +79,9 @@ impl InternalDB {
     Self::create_user(&pool, &settings);
 
     Self {
-      backup_interval,
-      path,
-      backup_path,
+      _backup_interval: backup_interval,
+      _path: path,
+      _backup_path: backup_path,
       pool,
     }
   }

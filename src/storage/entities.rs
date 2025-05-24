@@ -30,11 +30,11 @@ pub enum Entities {
   LinkedList(Arc<Mutex<KvLinkedList>>),
 
   /// A hash set (placeholder for future implementation).
-  HashSet,
+  _HashSet,
 
   /// A list (placeholder for future implementation).
-  List,
+  _List,
 
   /// A queue (placeholder for future implementation).
-  Queue,
+  _Queue,
 }

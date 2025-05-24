@@ -8,10 +8,10 @@ use std::{
   sync::{Arc, Mutex, RwLock},
 };
 
-use log::info;
+use log::{debug, info};
 
 use super::entities::{Entities, KvHashMap};
-use crate::resp::value::Value;
+use crate::{commands::general::set::Options, resp::value::Value};
 
 /// Main in-memory storage structure.
 ///
@@ -56,7 +56,7 @@ pub trait Store {
   ///
   /// * `key` - The key to set
   /// * `value` - The value to store
-  async fn set(&self, key: &str, value: Value) -> anyhow::Result<()>;
+  async fn set(&self, key: &str, value: Value, options: HashMap<Options, String>) -> anyhow::Result<()>;
 
   /// Gets a value from the store by key.
   ///
@@ -194,10 +194,12 @@ impl Store for MemoryStore {
   ///
   /// If the key contains a dot, it's treated as an entity operation.
   /// Otherwise, it's stored in the default HashMap.
-  async fn set(&self, key: &str, value: Value) -> anyhow::Result<()> {
+  async fn set(&self, key: &str, value: Value, args: HashMap<Options, String>) -> anyhow::Result<()> {
     if !self.is_authenticated() {
       return Err(anyhow::anyhow!("Authentication required"));
     }
+
+    debug!("Got extra options: {:?}", args);
 
     // Check if this is an entity operation (key contains ".")
     if key.contains(".") {
