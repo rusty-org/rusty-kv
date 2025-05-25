@@ -6,13 +6,24 @@
 use std::collections::{HashMap, HashSet, LinkedList};
 use std::sync::{Arc, Mutex};
 
+use crate::commands::general::set::Options;
 use crate::resp::value::Value;
+
+/// @NOTE Helper type aliases
+/// -------------------------------------------------------------------
+
+/// Helper type for storing key-value pairs with optional modifiers.
+pub type KvMapArgs = HashMap<Options, u128>;
+/// Represents a the Value as the first element and arguments map as the second element
+pub type KvMapPair = (Value, KvMapArgs);
+
+/// -------------------------------------------------------------------
 
 /// A set of unique string values.
 pub type KvSet = HashSet<String>;
 
 /// A map of string keys to RESP values.
-pub type KvHashMap = HashMap<String, Value>;
+pub type KvHashMap = HashMap<String, KvMapPair>;
 
 /// A linked list of string values.
 pub type KvLinkedList = LinkedList<String>;

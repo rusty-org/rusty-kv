@@ -56,7 +56,12 @@ pub trait Store {
   ///
   /// * `key` - The key to set
   /// * `value` - The value to store
-  async fn set(&self, key: &str, value: Value, options: HashMap<Options, String>) -> anyhow::Result<()>;
+  async fn set(
+    &self,
+    key: &str,
+    value: Value,
+    options: HashMap<Options, u128>,
+  ) -> anyhow::Result<()>;
 
   /// Gets a value from the store by key.
   ///
@@ -194,7 +199,7 @@ impl Store for MemoryStore {
   ///
   /// If the key contains a dot, it's treated as an entity operation.
   /// Otherwise, it's stored in the default HashMap.
-  async fn set(&self, key: &str, value: Value, args: HashMap<Options, String>) -> anyhow::Result<()> {
+  async fn set(&self, key: &str, value: Value, args: HashMap<Options, u128>) -> anyhow::Result<()> {
     if !self.is_authenticated() {
       return Err(anyhow::anyhow!("Authentication required"));
     }
@@ -228,9 +233,10 @@ impl Store for MemoryStore {
       );
     }
 
+    // Insert the key-value pair into the default HashMap
     if let Some(Entities::HashMap(map)) = entities.get("default") {
       let mut map = map.lock().unwrap();
-      map.insert(key.to_string(), value);
+      map.insert(key.to_string(), (value, args));
       Ok(())
     } else {
       Err(anyhow::anyhow!("Default map corrupted"))
@@ -270,7 +276,7 @@ impl Store for MemoryStore {
 
       if let Some(Entities::HashMap(map)) = entities.get("default") {
         let map = map.lock().unwrap();
-        return map.get(key).cloned();
+        return map.get(key).map(|(value, _args)| value.clone());
       }
     }
 
@@ -310,7 +316,7 @@ impl Store for MemoryStore {
 
       if let Some(Entities::HashMap(map)) = entities.get("default") {
         let mut map = map.lock().unwrap();
-        return map.remove(key);
+        return map.remove(key).map(|(value, _args)| value);
       }
     }
 
@@ -394,7 +400,7 @@ impl Store for MemoryStore {
         }
         Entities::HashMap(hashmap) => {
           let mut hashmap = hashmap.lock().unwrap();
-          hashmap.insert(key.to_string(), value);
+          hashmap.insert(key.to_string(), (value, HashMap::new()));
         }
         Entities::LinkedList(list) => {
           let mut list = list.lock().unwrap();
@@ -440,7 +446,7 @@ impl Store for MemoryStore {
           }
           Entities::HashMap(hashmap) => {
             let hashmap = hashmap.lock().unwrap();
-            Ok(hashmap.get(key).cloned())
+            Ok(hashmap.get(key).map(| (value, _args)| value.clone()))
           }
           Entities::LinkedList(list) => {
             let list = list.lock().unwrap();
@@ -489,7 +495,7 @@ impl Store for MemoryStore {
           }
           Entities::HashMap(hashmap) => {
             let mut hashmap = hashmap.lock().unwrap();
-            Ok(hashmap.remove(key))
+            Ok(hashmap.remove(key).map(|(value, _args)| value))
           }
           Entities::LinkedList(list) => {
             let mut list = list.lock().unwrap();

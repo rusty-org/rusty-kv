@@ -32,8 +32,8 @@ pub struct SetCommand;
 pub enum Options {
   Ex, // Expiration in seconds
   Px, // Expiration in milliseconds
-  Nx,      // Only set if not exists
-  Xx,      // Only set if exists
+  Nx, // Only set if not exists
+  Xx, // Only set if exists
 }
 
 impl SetCommand {
@@ -76,7 +76,7 @@ impl SetCommand {
 
     let key = args[0].to_owned();
     let value = args[1].to_owned();
-    let mut extra_args = HashMap::<Options, String>::new();
+    let mut extra_args = HashMap::<Options, u128>::new();
 
     // @NOTE Find any other optional arguments
     // Such as EX, PX, NX, XX
@@ -88,10 +88,18 @@ impl SetCommand {
           // Handle expiration in seconds
           if let Some(expiration) = args.get(2) {
             debug!("Setting expiration to {} seconds", expiration);
-            extra_args.insert(
-              Options::Ex,
-              expiration.into(),
-            );
+
+            // Parse the expiration value and add that to the extra_args
+            match expiration.parse::<u64>() {
+              Ok(exp) => {
+                extra_args.insert(Options::Ex, exp as u128);
+              }
+              Err(_) => {
+                return Err(anyhow!("Invalid expiration value: {}", expiration));
+              }
+            }
+
+            // Remove the expiration argument from args
             args.remove(2);
           }
         }
@@ -99,10 +107,18 @@ impl SetCommand {
           // Handle expiration in milliseconds
           if let Some(expiration) = args.get(2) {
             debug!("Setting expiration to {} milliseconds", expiration);
-            extra_args.insert(
-              Options::Px,
-              expiration.into(),
-            );
+
+            // Parse the expiration value and add that to the extra_args
+            match expiration.parse::<u64>() {
+              Ok(exp) => {
+                extra_args.insert(Options::Px, exp as u128);
+              }
+              Err(_) => {
+                return Err(anyhow!("Invalid expiration value: {}", expiration));
+              }
+            }
+
+            // Remove the expiration argument from args
             args.remove(2);
           }
         }
