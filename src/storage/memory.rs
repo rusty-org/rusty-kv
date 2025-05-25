@@ -5,9 +5,10 @@
 
 use std::{
   collections::{HashMap, LinkedList},
-  sync::{Arc, Mutex, RwLock},
+  sync::{Arc, Mutex, RwLock}, time::SystemTime,
 };
 
+use anyhow::anyhow;
 use log::{debug, info};
 
 use super::entities::{Entities, KvHashMap};
@@ -60,7 +61,7 @@ pub trait Store {
     &self,
     key: &str,
     value: Value,
-    options: HashMap<Options, u128>,
+    options: HashMap<Options, u64>,
   ) -> anyhow::Result<()>;
 
   /// Gets a value from the store by key.
@@ -199,7 +200,7 @@ impl Store for MemoryStore {
   ///
   /// If the key contains a dot, it's treated as an entity operation.
   /// Otherwise, it's stored in the default HashMap.
-  async fn set(&self, key: &str, value: Value, args: HashMap<Options, u128>) -> anyhow::Result<()> {
+  async fn set(&self, key: &str, value: Value, args: HashMap<Options, u64>) -> anyhow::Result<()> {
     if !self.is_authenticated() {
       return Err(anyhow::anyhow!("Authentication required"));
     }
@@ -236,7 +237,7 @@ impl Store for MemoryStore {
     // Insert the key-value pair into the default HashMap
     if let Some(Entities::HashMap(map)) = entities.get("default") {
       let mut map = map.lock().unwrap();
-      map.insert(key.to_string(), (value, args));
+      map.insert(key.to_string(), (value, SystemTime::now(), args));
       Ok(())
     } else {
       Err(anyhow::anyhow!("Default map corrupted"))
@@ -275,8 +276,32 @@ impl Store for MemoryStore {
       let entities = user_store.entities.lock().unwrap();
 
       if let Some(Entities::HashMap(map)) = entities.get("default") {
+        // Get the map and check for the key
         let map = map.lock().unwrap();
-        return map.get(key).map(|(value, _args)| value.clone());
+        // Get the value tuple for the key
+        let val_tuple = map.get(key);
+
+        if let Some((value, _time, args)) = val_tuple {
+          // Check for expiration if Ex option is set (in seconds)
+          if let Some(&expiry_ms) = args.get(&Options::Ex) {
+            let elapsed = SystemTime::elapsed(_time).unwrap();
+            if elapsed.as_secs() >= expiry_ms as u64 {
+              debug!("Key '{}' has expired", key);
+              return None; // Key has expired
+            }
+          }
+
+          // Check for expiration if Px option is set (in milliseconds)
+          if let Some(&expiry_ms) = args.get(&Options::Px) {
+            let elapsed = SystemTime::elapsed(_time).unwrap();
+            if elapsed.as_millis() >= expiry_ms as u128 {
+              debug!("Key '{}' has expired", key);
+              return None; // Key has expired
+            }
+          }
+          return Some(value.clone()); // Return the value if not expired
+        };
+        debug!("Key '{}' not found in default HashMap", key);
       }
     }
 
@@ -316,7 +341,7 @@ impl Store for MemoryStore {
 
       if let Some(Entities::HashMap(map)) = entities.get("default") {
         let mut map = map.lock().unwrap();
-        return map.remove(key).map(|(value, _args)| value);
+        return map.remove(key).map(|(value, _time, _args)| value);
       }
     }
 
@@ -400,7 +425,7 @@ impl Store for MemoryStore {
         }
         Entities::HashMap(hashmap) => {
           let mut hashmap = hashmap.lock().unwrap();
-          hashmap.insert(key.to_string(), (value, HashMap::new()));
+          hashmap.insert(key.to_string(), (value, SystemTime::now(), HashMap::new()));
         }
         Entities::LinkedList(list) => {
           let mut list = list.lock().unwrap();
@@ -446,7 +471,32 @@ impl Store for MemoryStore {
           }
           Entities::HashMap(hashmap) => {
             let hashmap = hashmap.lock().unwrap();
-            Ok(hashmap.get(key).map(| (value, _args)| value.clone()))
+
+            let value_tuple = hashmap.get(key);
+
+            if let Some((value, time, args)) = value_tuple {
+              // Check for expiration if Ex option is set (in seconds)
+              if let Some(&expiry_ms) = args.get(&Options::Ex) {
+                let elapsed = SystemTime::now().duration_since(*time).unwrap();
+                if elapsed.as_secs() >= expiry_ms {
+                  debug!("Key '{}' has expired", key);
+                  return Ok(None); // Key has expired
+                }
+              }
+
+              // Check for expiration if Px option is set (in milliseconds)
+              if let Some(&expiry_ms) = args.get(&Options::Px) {
+                let elapsed = SystemTime::now().duration_since(*time).unwrap();
+                if elapsed.as_millis() >= expiry_ms as u128 {
+                  debug!("Key '{}' has expired", key);
+                  return Ok(None); // Key has expired
+                }
+              }
+
+              Ok(Some(value.clone()))
+            } else {
+              Ok(None)
+            }
           }
           Entities::LinkedList(list) => {
             let list = list.lock().unwrap();
@@ -495,7 +545,7 @@ impl Store for MemoryStore {
           }
           Entities::HashMap(hashmap) => {
             let mut hashmap = hashmap.lock().unwrap();
-            Ok(hashmap.remove(key).map(|(value, _args)| value))
+            Ok(hashmap.remove(key).map(|(value, _time, _args)| value))
           }
           Entities::LinkedList(list) => {
             let mut list = list.lock().unwrap();

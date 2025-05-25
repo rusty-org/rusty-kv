@@ -76,7 +76,7 @@ impl SetCommand {
 
     let key = args[0].to_owned();
     let value = args[1].to_owned();
-    let mut extra_args = HashMap::<Options, u128>::new();
+    let mut extra_args = HashMap::<Options, u64>::new();
 
     // @NOTE Find any other optional arguments
     // Such as EX, PX, NX, XX
@@ -92,7 +92,7 @@ impl SetCommand {
             // Parse the expiration value and add that to the extra_args
             match expiration.parse::<u64>() {
               Ok(exp) => {
-                extra_args.insert(Options::Ex, exp as u128);
+                extra_args.insert(Options::Ex, exp);
               }
               Err(_) => {
                 return Err(anyhow!("Invalid expiration value: {}", expiration));
@@ -111,7 +111,7 @@ impl SetCommand {
             // Parse the expiration value and add that to the extra_args
             match expiration.parse::<u64>() {
               Ok(exp) => {
-                extra_args.insert(Options::Px, exp as u128);
+                extra_args.insert(Options::Px, exp);
               }
               Err(_) => {
                 return Err(anyhow!("Invalid expiration value: {}", expiration));
