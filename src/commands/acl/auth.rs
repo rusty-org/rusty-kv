@@ -59,7 +59,6 @@ impl AuthCommand {
     let mut rows = stmt.query(&[username])?;
 
     if let Some(row) = rows.next()? {
-      let _db_username: String = row.get(0)?;
       let db_password: String = row.get(1)?;
 
       if db_password == password_hash {
@@ -67,7 +66,7 @@ impl AuthCommand {
 
         // Create a user-specific credential hash
         let mut hasher = Keccak256::new();
-        hasher.update(format!("{}:{}", username, password).as_bytes());
+        hasher.update(format!("{}:{}", username, db_password).as_bytes());
         let credential_hash = format!("{:x}", hasher.finalize());
 
         // Set the current user in the store

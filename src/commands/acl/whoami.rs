@@ -42,20 +42,19 @@ impl WhoAmi {
     let conn = db.pool.get()?;
 
     // Query the database for all users
-    let mut stmt = conn.prepare("SELECT username FROM users")?;
+    let mut stmt = conn.prepare("SELECT username, password FROM users")?;
     let mut rows = stmt.query(params![])?;
 
     while let Some(row) = rows.next()? {
       let username: String = row.get(0)?;
+      let password: String = row.get(1)?;
       debug!("Checking username: {}", username);
 
-      // For each user, query their credentials to check if they match our current user
-      let mut user_stmt = conn.prepare("SELECT password FROM users WHERE username = ?")?;
-      let password: String = user_stmt.query_row(params![username], |row| row.get(0))?;
+      // Create hash directly - avoid additional query
+      let hash_input = format!("{}:{}", username, password);
 
-      // This recreates the same hash that would have been created during AUTH
       let mut hasher = Keccak256::new();
-      hasher.update(format!("{}:{}", username, password).as_bytes());
+      hasher.update(hash_input.as_bytes());
       let recreated_hash = format!("{:x}", hasher.finalize());
 
       // Compare the recreated hash with our current hash
