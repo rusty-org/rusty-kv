@@ -5,10 +5,10 @@
 
 use std::{
   collections::{HashMap, LinkedList},
-  sync::{Arc, Mutex, RwLock}, time::SystemTime,
+  sync::{Arc, Mutex, RwLock},
+  time::SystemTime,
 };
 
-use anyhow::anyhow;
 use log::{debug, info};
 
 use super::entities::{Entities, KvHashMap};
@@ -110,51 +110,6 @@ pub trait Store {
   /// * `true` - A user is authenticated
   /// * `false` - No user is authenticated
   fn is_authenticated(&self) -> bool;
-
-  /// Creates a new entity of the specified type.
-  ///
-  /// # Arguments
-  ///
-  /// * `entity_type` - Type of entity to create (e.g., "hashmap", "set")
-  /// * `name` - Name to assign to the new entity
-  async fn create_entity(&self, entity_type: &str, name: &str) -> anyhow::Result<()>;
-
-  /// Adds a value to an entity.
-  ///
-  /// # Arguments
-  ///
-  /// * `entity_name` - Name of the entity to add to
-  /// * `key` - Key within the entity
-  /// * `value` - Value to add
-  async fn entity_add(&self, entity_name: &str, key: &str, value: Value) -> anyhow::Result<()>;
-
-  /// Gets a value from an entity.
-  ///
-  /// # Arguments
-  ///
-  /// * `entity_name` - Name of the entity to get from
-  /// * `key` - Key within the entity
-  ///
-  /// # Returns
-  ///
-  /// * `Ok(Some(Value))` - Value was found
-  /// * `Ok(None)` - Key doesn't exist in entity
-  /// * `Err(...)` - Entity doesn't exist or other error
-  async fn entity_get(&self, entity_name: &str, key: &str) -> anyhow::Result<Option<Value>>;
-
-  /// Deletes a value from an entity.
-  ///
-  /// # Arguments
-  ///
-  /// * `entity_name` - Name of the entity to delete from
-  /// * `key` - Key within the entity to delete
-  ///
-  /// # Returns
-  ///
-  /// * `Ok(Some(Value))` - Value was deleted
-  /// * `Ok(None)` - Key didn't exist in entity
-  /// * `Err(...)` - Entity doesn't exist or other error
-  async fn entity_delete(&self, entity_name: &str, key: &str) -> anyhow::Result<Option<Value>>;
 }
 
 impl Store for MemoryStore {
@@ -207,17 +162,19 @@ impl Store for MemoryStore {
 
     debug!("Got extra options: {:?}", args);
 
-    // Check if this is an entity operation (key contains ".")
-    if key.contains(".") {
-      let parts: Vec<&str> = key.splitn(2, '.').collect();
-      if parts.len() == 2 {
-        let entity_name = parts[0];
-        let entity_key = parts[1];
+    // @TODO: handle where user would want to divider their data into different entities like this
+    // @TODO: `SET admin.foo bar` would set a value in the "admin" entity with key "foo"
+    // // Check if this is an entity operation (key contains ".")
+    // if key.contains(".") {
+    //   let parts: Vec<&str> = key.splitn(2, '.').collect();
+    //   if parts.len() == 2 {
+    //     let entity_name = parts[0];
+    //     let entity_key = parts[1];
 
-        // Attempt to add to entity
-        return self.entity_add(entity_name, entity_key, value).await;
-      }
-    }
+    //     // Attempt to add to entity
+    //     return self.entity_add(entity_name, entity_key, value).await;
+    //   }
+    // }
 
     // For regular key-value operation, wrap in a HashMap entity
     let user_hash = self.get_current_user().unwrap();
@@ -253,20 +210,22 @@ impl Store for MemoryStore {
       return None;
     }
 
-    // Check if this is an entity operation (key contains ".")
-    if key.contains(".") {
-      let parts: Vec<&str> = key.splitn(2, '.').collect();
-      if parts.len() == 2 {
-        let entity_name = parts[0];
-        let entity_key = parts[1];
+    // @TODO: handle where user would want to divider their data into different entities like this
+    // @TODO: `GET admin.foo` would get a value in the "admin" entity with key "foo"
+    // // Check if this is an entity operation (key contains ".")
+    // if key.contains(".") {
+    //   let parts: Vec<&str> = key.splitn(2, '.').collect();
+    //   if parts.len() == 2 {
+    //     let entity_name = parts[0];
+    //     let entity_key = parts[1];
 
-        // Attempt to get from entity
-        return match self.entity_get(entity_name, entity_key).await {
-          Ok(value) => value,
-          Err(_) => None,
-        };
-      }
-    }
+    //     // Attempt to get from entity
+    //     return match self.entity_get(entity_name, entity_key).await {
+    //       Ok(value) => value,
+    //       Err(_) => None,
+    //     };
+    //   }
+    // }
 
     // For regular key-value operation, retrieve from default HashMap
     let user_hash = self.get_current_user().unwrap();
@@ -317,20 +276,22 @@ impl Store for MemoryStore {
       return None;
     }
 
-    // Check if this is an entity operation (key contains ".")
-    if key.contains(".") {
-      let parts: Vec<&str> = key.splitn(2, '.').collect();
-      if parts.len() == 2 {
-        let entity_name = parts[0];
-        let entity_key = parts[1];
+    // @TODO: handle where user would want to divider their data into different entities like this
+    // @TODO: `DEL admin.foo` would delete a value in the "admin" entity with key "foo"
+    // // Check if this is an entity operation (key contains ".")
+    // if key.contains(".") {
+    //   let parts: Vec<&str> = key.splitn(2, '.').collect();
+    //   if parts.len() == 2 {
+    //     let entity_name = parts[0];
+    //     let entity_key = parts[1];
 
-        // Attempt to delete from entity
-        return match self.entity_delete(entity_name, entity_key).await {
-          Ok(value) => value,
-          Err(_) => None,
-        };
-      }
-    }
+    //     // Attempt to delete from entity
+    //     return match self.entity_delete(entity_name, entity_key).await {
+    //       Ok(value) => value,
+    //       Err(_) => None,
+    //     };
+    //   }
+    // }
 
     // For regular key-value operation
     let user_hash = self.get_current_user().unwrap();
@@ -346,241 +307,5 @@ impl Store for MemoryStore {
     }
 
     None
-  }
-
-  /// Creates a new entity of the specified type.
-  ///
-  /// # Arguments
-  ///
-  /// * `entity_type` - Type of entity to create (e.g., "hashmap", "set")
-  /// * `name` - Name to assign to the new entity
-  async fn create_entity(&self, entity_type: &str, name: &str) -> anyhow::Result<()> {
-    if !self.is_authenticated() {
-      return Err(anyhow::anyhow!("Authentication required"));
-    }
-
-    // Create the appropriate entity type based on the request
-    let entity = match entity_type.to_lowercase().as_str() {
-      "set" => Entities::Set(Arc::new(Mutex::new(super::entities::KvSet::new()))),
-      "hashmap" => Entities::HashMap(Arc::new(Mutex::new(super::entities::KvHashMap::new()))),
-      "linkedlist" => {
-        Entities::LinkedList(Arc::new(Mutex::new(super::entities::KvLinkedList::new())))
-      }
-      _ => return Err(anyhow::anyhow!("Unknown entity type: {}", entity_type)),
-    };
-
-    let user_hash = self.get_current_user().unwrap();
-    let stores = self.auth_stores.read().unwrap();
-
-    if let Some(user_store) = stores.get(&user_hash) {
-      let mut entities = user_store.entities.lock().unwrap();
-      entities.insert(name.to_string(), entity);
-      Ok(())
-    } else {
-      Err(anyhow::anyhow!("User store not found"))
-    }
-  }
-
-  /// Adds a value to an entity.
-  ///
-  /// Creates the entity if it doesn't exist.
-  async fn entity_add(&self, entity_name: &str, key: &str, value: Value) -> anyhow::Result<()> {
-    if !self.is_authenticated() {
-      return Err(anyhow::anyhow!("Authentication required"));
-    }
-
-    let user_hash = self.get_current_user().unwrap();
-
-    // Check if entity exists
-    let entity_exists = {
-      let stores = self.auth_stores.read().unwrap();
-      let user_store = stores
-        .get(&user_hash)
-        .ok_or_else(|| anyhow::anyhow!("User store not found"))?;
-      let entities = user_store.entities.lock().unwrap();
-      entities.contains_key(entity_name)
-    };
-
-    // Create entity if it doesn't exist
-    if !entity_exists {
-      self.create_entity("hashmap", entity_name).await?;
-    }
-
-    // Now perform the operation
-    let stores = self.auth_stores.read().unwrap();
-    let user_store = stores
-      .get(&user_hash)
-      .ok_or_else(|| anyhow::anyhow!("User store not found"))?;
-    let entities = user_store.entities.lock().unwrap();
-
-    if let Some(entity) = entities.get(entity_name) {
-      match entity {
-        Entities::Set(set) => {
-          let mut set = set.lock().unwrap();
-          if let Value::SimpleString(val) = &value {
-            set.insert(val.clone());
-          } else {
-            set.insert(key.to_string());
-          }
-        }
-        Entities::HashMap(hashmap) => {
-          let mut hashmap = hashmap.lock().unwrap();
-          hashmap.insert(key.to_string(), (value, SystemTime::now(), HashMap::new()));
-        }
-        Entities::LinkedList(list) => {
-          let mut list = list.lock().unwrap();
-          if let Value::SimpleString(val) = &value {
-            list.push_back(val.clone());
-          } else {
-            // Use key as fallback if value isn't a SimpleString
-            list.push_back(key.to_string());
-          }
-        }
-        _ => {
-          return Err(anyhow::anyhow!(
-            "Entity type not supported for this operation"
-          ));
-        }
-      }
-    }
-
-    Ok(())
-  }
-
-  /// Gets a value from an entity.
-  async fn entity_get(&self, entity_name: &str, key: &str) -> anyhow::Result<Option<Value>> {
-    if !self.is_authenticated() {
-      return Err(anyhow::anyhow!("Authentication required"));
-    }
-
-    let user_hash = self.get_current_user().unwrap();
-    let stores = self.auth_stores.read().unwrap();
-
-    if let Some(user_store) = stores.get(&user_hash) {
-      let entities = user_store.entities.lock().unwrap();
-
-      if let Some(entity) = entities.get(entity_name) {
-        match entity {
-          Entities::Set(set) => {
-            let set = set.lock().unwrap();
-            if set.contains(key) {
-              Ok(Some(Value::SimpleString(key.to_string())))
-            } else {
-              Ok(None)
-            }
-          }
-          Entities::HashMap(hashmap) => {
-            let hashmap = hashmap.lock().unwrap();
-
-            let value_tuple = hashmap.get(key);
-
-            if let Some((value, time, args)) = value_tuple {
-              // Check for expiration if Ex option is set (in seconds)
-              if let Some(&expiry_ms) = args.get(&Options::Ex) {
-                let elapsed = SystemTime::now().duration_since(*time).unwrap();
-                if elapsed.as_secs() >= expiry_ms {
-                  debug!("Key '{}' has expired", key);
-                  return Ok(None); // Key has expired
-                }
-              }
-
-              // Check for expiration if Px option is set (in milliseconds)
-              if let Some(&expiry_ms) = args.get(&Options::Px) {
-                let elapsed = SystemTime::now().duration_since(*time).unwrap();
-                if elapsed.as_millis() >= expiry_ms as u128 {
-                  debug!("Key '{}' has expired", key);
-                  return Ok(None); // Key has expired
-                }
-              }
-
-              Ok(Some(value.clone()))
-            } else {
-              Ok(None)
-            }
-          }
-          Entities::LinkedList(list) => {
-            let list = list.lock().unwrap();
-            // For linked list, we need to iterate to find the key
-            for value in list.iter() {
-              if value == key {
-                return Ok(Some(Value::SimpleString(key.to_string())));
-              }
-            }
-            Ok(None)
-          }
-          _ => Err(anyhow::anyhow!(
-            "Entity type not supported for this operation"
-          )),
-        }
-      } else {
-        Err(anyhow::anyhow!("Entity not found: {}", entity_name))
-      }
-    } else {
-      Err(anyhow::anyhow!("User store not found"))
-    }
-  }
-
-  /// Deletes a value from an entity.
-  async fn entity_delete(&self, entity_name: &str, key: &str) -> anyhow::Result<Option<Value>> {
-    if !self.is_authenticated() {
-      return Err(anyhow::anyhow!("Authentication required"));
-    }
-
-    let user_hash = self.get_current_user().unwrap();
-    let stores = self.auth_stores.read().unwrap();
-
-    if let Some(user_store) = stores.get(&user_hash) {
-      let entities = user_store.entities.lock().unwrap();
-
-      if let Some(entity) = entities.get(entity_name) {
-        match entity {
-          Entities::Set(set) => {
-            let mut set = set.lock().unwrap();
-            let removed = set.remove(key);
-            if removed {
-              Ok(Some(Value::SimpleString(key.to_string())))
-            } else {
-              Ok(None)
-            }
-          }
-          Entities::HashMap(hashmap) => {
-            let mut hashmap = hashmap.lock().unwrap();
-            Ok(hashmap.remove(key).map(|(value, _time, _args)| value))
-          }
-          Entities::LinkedList(list) => {
-            let mut list = list.lock().unwrap();
-            // For linked list, we need a stable approach to remove the key
-            let mut temp_list = LinkedList::new();
-            let mut removed = false;
-
-            // Move all elements except the one we want to remove
-            while let Some(value) = list.pop_front() {
-              if !removed && value == key {
-                removed = true;
-                // Skip this item (don't add to temp_list)
-              } else {
-                temp_list.push_back(value);
-              }
-            }
-
-            // Replace the original list with our filtered list
-            *list = temp_list;
-
-            if removed {
-              Ok(Some(Value::SimpleString(key.to_string())))
-            } else {
-              Ok(None)
-            }
-          }
-          _ => Err(anyhow::anyhow!(
-            "Entity type not supported for this operation"
-          )),
-        }
-      } else {
-        Err(anyhow::anyhow!("Entity not found: {}", entity_name))
-      }
-    } else {
-      Err(anyhow::anyhow!("User store not found"))
-    }
   }
 }

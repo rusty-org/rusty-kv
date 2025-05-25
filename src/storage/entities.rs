@@ -15,7 +15,8 @@ use crate::resp::value::Value;
 
 /// Helper type for storing key-value pairs with optional modifiers.
 pub type KvMapArgs = HashMap<Options, u64>;
-/// Represents a the Value as the first element and arguments map as the last element and the SystemTime as the second element to store the time of insertion.
+/// Represents a the Value as the first element and arguments map as the last element
+/// and the SystemTime as the second element to store the time of insertion.
 pub type KvMapPair = (Value, SystemTime, KvMapArgs);
 
 /// -------------------------------------------------------------------

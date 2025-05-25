@@ -5,3 +5,4 @@
 //! - `auth`: User authentication
 
 pub mod auth;
+pub mod whoami;

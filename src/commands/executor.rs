@@ -7,8 +7,7 @@ use anyhow::{Result, anyhow};
 use log::info;
 
 use crate::{
-  resp::value::Value,
-  storage::{db::InternalDB, memory::MemoryStore, memory::Store},
+  commands::acl::whoami::WhoAmi, resp::value::Value, storage::{db::InternalDB, memory::{MemoryStore, Store}}
 };
 
 use super::{
@@ -90,20 +89,9 @@ impl CommandExecutor {
 
       // @INFO ACL commands
       "AUTH" => AuthCommand::execute(args, self.store.to_owned(), self.db.clone()).await,
+      "WHOAMI" => WhoAmi::execute(self.store.clone(), self.db.clone()).await,
 
-      // New entity type creation command
-      "CREATE" => {
-        if args.len() < 2 {
-          return Err(anyhow!("CREATE requires entity type and name"));
-        }
-        let entity_type = &args[0]; // "hashmap", "set", etc.
-        let entity_name = &args[1];
-
-        // Create the entity
-        self.store.create_entity(entity_type, entity_name).await?;
-        Ok(Value::SimpleString("OK".to_string()))
-      }
-
+      // @INFO Catch-all for unknown commands
       _ => Err(anyhow!("Unknown command: {}", command)),
     }
   }
