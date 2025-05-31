@@ -7,7 +7,12 @@ use anyhow::{Result, anyhow};
 use log::info;
 
 use crate::{
-  commands::acl::whoami::WhoAmi, resp::value::Value, storage::{db::InternalDB, memory::{MemoryStore, Store}}
+  commands::acl::whoami::WhoAmi,
+  resp::value::Value,
+  storage::{
+    db::InternalDB,
+    memory::{MemoryStore, Store},
+  },
 };
 
 use super::{
@@ -64,7 +69,7 @@ impl CommandExecutor {
   /// // Execute a GET command
   /// let result = executor.execute("GET", vec!["mykey".to_string()]).await;
   /// ```
-  pub async fn execute(&self, command: &str, args: Vec<String>) -> Result<Value> {
+  pub async fn execute(&self, command: &str, args: Vec<Value>) -> Result<Value> {
     // Log command with auth status
     let auth_status = if self.store.is_authenticated() {
       "authenticated"
@@ -76,19 +81,31 @@ impl CommandExecutor {
       command, auth_status, args
     );
 
+    // Convert Values to strings for commands that still expect strings
+    let string_args: Vec<String> = args
+      .iter()
+      .map(|v| match v {
+        Value::SimpleString(s) => s.clone(),
+        Value::BulkString(s) => s.clone(),
+        Value::Integer(i) => i.to_string(),
+        Value::Boolean(b) => b.to_string(),
+        _ => "".to_string(),
+      })
+      .collect();
+
     match command {
       // @INFO Utility commands
-      "PING" => PingCommand::execute(args),
-      "HELP" => HelpCommand::execute(args),
-      "ECHO" => EchoCommand::execute(args),
+      "PING" => PingCommand::execute(string_args),
+      "HELP" => HelpCommand::execute(string_args),
+      "ECHO" => EchoCommand::execute(string_args),
 
       // @INFO Basic commands for data manipulation
-      "GET" => GetCommand::execute(args, self.store.to_owned()).await,
-      "SET" => SetCommand::execute(args, self.store.to_owned()).await,
-      "DEL" => DeleteCommand::execute(args, self.store.to_owned()).await,
+      "GET" => GetCommand::execute(string_args, self.store.to_owned()).await,
+      "SET" => SetCommand::execute(string_args, self.store.to_owned(), args).await,
+      "DEL" => DeleteCommand::execute(string_args, self.store.to_owned()).await,
 
       // @INFO ACL commands
-      "AUTH" => AuthCommand::execute(args, self.store.to_owned(), self.db.clone()).await,
+      "AUTH" => AuthCommand::execute(string_args, self.store.to_owned(), self.db.clone()).await,
       "WHOAMI" => WhoAmi::execute(self.store.clone(), self.db.clone()).await,
 
       // @INFO Catch-all for unknown commands

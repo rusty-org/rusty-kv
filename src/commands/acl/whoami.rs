@@ -2,7 +2,7 @@
 //!
 //! It returns the current user if authenticated, or an error if not.
 
-use anyhow::{anyhow, Ok, Result};
+use anyhow::{Ok, Result, anyhow};
 use log::{debug, warn};
 use rusqlite::params;
 use sha3::{Digest, Keccak256};

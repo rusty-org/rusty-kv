@@ -61,7 +61,7 @@ impl Value {
   ///
   /// * `Some((String, Vec<String>))` - Command name (uppercase) and argument list
   /// * `None` - If the value is not a valid command format
-  pub fn to_command(&self) -> Option<(String, Vec<String>)> {
+  pub fn to_command(&self) -> Option<(String, Vec<Value>)> {
     if let Value::Array(elements) = self {
       if elements.is_empty() {
         return None;
@@ -82,37 +82,38 @@ impl Value {
           } else {
             s.clone().to_uppercase()
           }
-        },
+        }
         Value::SimpleString(s) => s.clone().to_uppercase(),
         _ => return None,
       };
 
-      // Extract arguments, also handling embedded RESP format
+      // Extract arguments, preserving their original types
       let args = elements[1..]
         .iter()
-        .filter_map(|v| match v {
+        .map(|v| match v {
           Value::BulkString(s) => {
             // Check if the string is in RESP format
             if s.starts_with('$') && s.contains("\r\n") {
               // Extract actual value from embedded RESP format
               let parts: Vec<&str> = s.split("\r\n").collect();
               if parts.len() >= 2 {
-                Some(parts[1].to_string())
+                Value::BulkString(parts[1].to_string())
               } else {
-                Some(s.clone())
+                v.clone()
               }
             } else if s.starts_with(':') {
               // Handle numeric values encoded as :100\r\n
-              Some(s.trim_start_matches(':')
-                   .trim_end_matches("\r\n")
-                   .to_string())
+              let num_str = s.trim_start_matches(':').trim_end_matches("\r\n");
+              if let Ok(num) = num_str.parse::<i64>() {
+                Value::Integer(num)
+              } else {
+                v.clone()
+              }
             } else {
-              Some(s.clone())
+              v.clone()
             }
-          },
-          Value::SimpleString(s) => Some(s.clone()),
-          Value::Integer(i) => Some(i.to_string()),
-          _ => None,
+          }
+          _ => v.clone(),
         })
         .collect();
 

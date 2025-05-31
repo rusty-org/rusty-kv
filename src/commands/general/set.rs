@@ -43,6 +43,7 @@ impl SetCommand {
   ///
   /// * `args` - Command arguments (key, value, and optional modifiers)
   /// * `store` - Memory store to operate on
+  /// * `orig_args` - Original value objects to preserve type
   ///
   /// # Returns
   ///
@@ -62,10 +63,15 @@ impl SetCommand {
   /// // Client sends: SET mykey myvalue EX 60
   /// let result = SetCommand::execute(
   ///     vec!["mykey".to_string(), "myvalue".to_string(), "EX".to_string(), "60".to_string()],
-  ///     store
+  ///     store,
+  ///     orig_args
   /// ).await;
   /// ```
-  pub async fn execute(mut args: Vec<String>, store: MemoryStore) -> Result<Value> {
+  pub async fn execute(
+    mut args: Vec<String>,
+    store: MemoryStore,
+    orig_args: Vec<Value>,
+  ) -> Result<Value> {
     if !store.is_authenticated() {
       return Err(anyhow!("Authentication required"));
     }
@@ -75,18 +81,26 @@ impl SetCommand {
     }
 
     let key = args[0].to_owned();
-    let value = args[1].to_owned();
     let mut extra_args = HashMap::<Options, u64>::new();
+
+    // Get the original value with its type preserved
+    let value = if orig_args.len() > 1 {
+      orig_args[1].clone()
+    } else {
+      Value::SimpleString(args[1].clone())
+    };
 
     // @NOTE Find any other optional arguments
     // Such as EX, PX, NX, XX
-    while args.len() > 2 {
-      let arg = args.remove(2);
+    let mut arg_index = 2;
+    while arg_index < args.len() {
+      let arg = args[arg_index].clone();
+      arg_index += 1;
 
       match arg.to_uppercase().as_str() {
         "EX" => {
           // Handle expiration in seconds
-          if let Some(expiration) = args.get(2) {
+          if let Some(expiration) = args.get(arg_index) {
             debug!("Setting expiration to {} seconds", expiration);
 
             // Parse the expiration value and add that to the extra_args
@@ -99,13 +113,13 @@ impl SetCommand {
               }
             }
 
-            // Remove the expiration argument from args
-            args.remove(2);
+            // Move to the next argument
+            arg_index += 1;
           }
         }
         "PX" => {
           // Handle expiration in milliseconds
-          if let Some(expiration) = args.get(2) {
+          if let Some(expiration) = args.get(arg_index) {
             debug!("Setting expiration to {} milliseconds", expiration);
 
             // Parse the expiration value and add that to the extra_args
@@ -118,8 +132,8 @@ impl SetCommand {
               }
             }
 
-            // Remove the expiration argument from args
-            args.remove(2);
+            // Move to the next argument
+            arg_index += 1;
           }
         }
         "NX" => {
@@ -135,10 +149,17 @@ impl SetCommand {
     }
 
     // Set the value in the store
-    store
-      .set(key.as_str(), Value::SimpleString(value.clone()), extra_args)
-      .await?;
-    debug!("Set key {} to value {}", key, value);
+    store.set(key.as_str(), value.clone(), extra_args).await?;
+
+    // Log with the display representation of the value
+    let display_value = match &value {
+      Value::SimpleString(s) => s.clone(),
+      Value::BulkString(s) => s.clone(),
+      Value::Integer(i) => i.to_string(),
+      Value::Boolean(b) => b.to_string(),
+      _ => format!("{:?}", value),
+    };
+    debug!("Set key {} to value {}", key, display_value);
 
     Ok(Value::SimpleString("OK".to_string()))
   }
