@@ -66,19 +66,57 @@ impl Value {
       if elements.is_empty() {
         return None;
       }
+
+      // Extract the actual command from possibly embedded RESP format
       let command = match &elements[0] {
-        Value::BulkString(s) => s.clone(),
-        Value::SimpleString(s) => s.clone(),
+        Value::BulkString(s) => {
+          // Check if the string is in RESP format ($3\r\nset\r\n)
+          if s.starts_with('$') && s.contains("\r\n") {
+            // Extract actual command from embedded RESP format
+            let parts: Vec<&str> = s.split("\r\n").collect();
+            if parts.len() >= 2 {
+              parts[1].to_string().to_uppercase()
+            } else {
+              s.clone().to_uppercase()
+            }
+          } else {
+            s.clone().to_uppercase()
+          }
+        },
+        Value::SimpleString(s) => s.clone().to_uppercase(),
         _ => return None,
       };
+
+      // Extract arguments, also handling embedded RESP format
       let args = elements[1..]
         .iter()
         .filter_map(|v| match v {
-          Value::BulkString(s) | Value::SimpleString(s) => Some(s.clone()),
+          Value::BulkString(s) => {
+            // Check if the string is in RESP format
+            if s.starts_with('$') && s.contains("\r\n") {
+              // Extract actual value from embedded RESP format
+              let parts: Vec<&str> = s.split("\r\n").collect();
+              if parts.len() >= 2 {
+                Some(parts[1].to_string())
+              } else {
+                Some(s.clone())
+              }
+            } else if s.starts_with(':') {
+              // Handle numeric values encoded as :100\r\n
+              Some(s.trim_start_matches(':')
+                   .trim_end_matches("\r\n")
+                   .to_string())
+            } else {
+              Some(s.clone())
+            }
+          },
+          Value::SimpleString(s) => Some(s.clone()),
+          Value::Integer(i) => Some(i.to_string()),
           _ => None,
         })
         .collect();
-      Some((command.to_uppercase(), args))
+
+      Some((command, args))
     } else {
       None
     }
