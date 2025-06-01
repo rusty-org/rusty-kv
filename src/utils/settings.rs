@@ -30,6 +30,8 @@ pub struct Server {
   pub network: Network,
   /// Database-related configuration
   pub db: Database,
+  /// RDB persistence settings
+  pub kdb: KDBSettings,
 }
 
 /// Network configuration settings.
@@ -70,6 +72,22 @@ pub struct Database {
   pub enable_logging: bool,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+/// Represents whether the persistence layer is enabled or not.
+///
+/// It will load the RDB data while it boots up if enabled,
+/// and periodically save the data to disk.
+pub struct KDBSettings {
+  /// Path to the database file
+  pub path: String,
+  /// File name
+  pub file_name: String,
+  /// Whether to enable RDB persistence
+  pub persistence: bool,
+  /// Interval for RDB backups in seconds
+  pub backup_interval: u64,
+}
+
 impl Settings {
   /// Creates a new Settings instance.
   ///
@@ -107,6 +125,12 @@ impl Settings {
           backup_interval: 3600,
           compression: true,
           enable_logging: true,
+        },
+        kdb: KDBSettings {
+          path: "/tmp/rustykv.bak".to_string(),
+          file_name: "backup.rdb".to_string(),
+          persistence: false,
+          backup_interval: 3600, // Default backup interval (in seconds)
         },
       },
     };

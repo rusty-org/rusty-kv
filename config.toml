@@ -18,3 +18,9 @@ max_size = 2048
 backup_interval = 3600
 compression = true
 enable_logging = true
+
+[server.kdb]
+path = "/tmp/rustykv"
+file_name = "dump.kdb"
+persistence = true
+backup_interval = 3600

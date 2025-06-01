@@ -1,5 +1,38 @@
 # TODO: Things to implement for the in-memory database
 
+## KDB Persistence
+
+Implement KDB persistence to ensure that data is saved to disk and can be
+recovered after a restart. This will involve:
+
+- Serializing the in-memory data structures to a file format (e.g., HEX, BINARY)
+- Implementing a mechanism to load this data back into memory on startup
+- Ensuring that all operations that modify data also update the KDB file
+- Handling concurrent access to the KDB file to prevent corruption
+
+When the server boots up it will automatically load the KDB file and populate
+the data into the memory. And on a periodic (can be configured) basis, the
+server will save the data to the KDB file.
+
+**Example:**
+
+```bash
+# Manually load the KDB file
+KDB LOAD /file/path.kdb
+
+# Manually save the KDB file
+KDB SAVE /file/path.kdb
+
+# Get a key from the DB not the memory
+# This will load the key from the KDB file.
+# One thing keep in mind it will take a lot more time than getting it from memory.
+KDB GET <key>
+
+# Set a key in the DB not the memory
+# This will save the key to the KDB file.
+KDB SET <key> <value>
+```
+
 ## Creating Entities (Not priority)
 
 ```
