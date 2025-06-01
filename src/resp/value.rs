@@ -120,9 +120,8 @@ impl Value {
                 v.clone()
               }
             } else if s.starts_with("*") {
-              // ----------------------------------------------------------------------
               // Handle array values encoded as *3\r\n$1\r\n1\r\n$1\r\n2\r\n$1\r\n3\r\n
-              let mut lines = s.split_terminator("\r\n");
+              let mut lines = s.split("\r\n");
 
               // Extract the array header, e.g., "*3"
               let arr_header = lines.next().unwrap_or("");
@@ -132,36 +131,24 @@ impl Value {
                 0
               };
 
-              let mut result = Vec::<(usize, String)>::with_capacity(arr_length);
+              let mut array_values = Vec::with_capacity(arr_length);
+              let mut i = 0;
 
-              while let Some(length_str) = lines.next() {
-                if length_str.starts_with('$') {
-                  if let Ok(length) = length_str[1..].parse::<usize>() {
+              while i < arr_length {
+                if let Some(length_str) = lines.next() {
+                  // Skip the length indicator (like $1)
+                  if length_str.starts_with('$') {
                     if let Some(value) = lines.next() {
-                      result.push((length, value.to_string()));
+                      array_values.push(Value::BulkString(value.to_string()));
+                      i += 1;
                     }
                   }
+                } else {
+                  break;
                 }
               }
 
-              // ----------------------------------------------------------------------
-
-              let parts: Vec<&str> = s.split("\r\n").collect();
-              if parts.len() >= 2 {
-                let array_length = parts[0]
-                  .trim_start_matches('*')
-                  .parse::<usize>()
-                  .unwrap_or(0);
-                let mut array_values = Vec::new();
-                for i in 1..=array_length {
-                  if i < parts.len() {
-                    array_values.push(Value::BulkString(parts[i].to_string()));
-                  }
-                }
-                Value::Array(array_values)
-              } else {
-                v.clone()
-              }
+              Value::Array(array_values)
             } else {
               v.clone()
             }
