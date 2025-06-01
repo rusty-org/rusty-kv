@@ -72,8 +72,7 @@ impl Value {
         Value::BulkString(s) => {
           // Check if the string is in RESP format ($3\r\nset\r\n)
           if s.starts_with('$') && s.contains("\r\n") {
-            // Extract actual command from embedded RESP format
-            let parts: Vec<&str> = s.split("\r\n").collect();
+            let parts: Vec<&str> = s.split("\r\n").collect(); // Extract actual command from embedded RESP format
             if parts.len() >= 2 {
               parts[1].to_string().to_uppercase()
             } else {
@@ -110,8 +109,7 @@ impl Value {
                 v.clone()
               }
             } else if s.starts_with("#") {
-              // Handle boolean values encoded as #t\r\n or #f\r\n
-              let bool_str = s.trim_start_matches('#').trim_end_matches("\r\n");
+              let bool_str = s.trim_start_matches('#').trim_end_matches("\r\n"); // Handle boolean values encoded as #t\r\n or #f\r\n
               if bool_str == "t" {
                 Value::Boolean(true)
               } else if bool_str == "f" {
@@ -120,8 +118,7 @@ impl Value {
                 v.clone()
               }
             } else if s.starts_with("*") {
-              // Handle array values encoded as *3\r\n$1\r\n1\r\n$1\r\n2\r\n$1\r\n3\r\n
-              let mut lines = s.split("\r\n");
+              let mut lines = s.split("\r\n"); // Handle array values encoded as *3\r\n$1\r\n1\r\n$1\r\n2\r\n$1\r\n3\r\n
 
               // Extract the array header, e.g., "*3"
               let arr_header = lines.next().unwrap_or("");
