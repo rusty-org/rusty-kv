@@ -4,7 +4,7 @@
 //! for different entity types (HashMaps, Sets) and authentication.
 
 use std::{
-  collections::{HashMap, LinkedList},
+  collections::HashMap,
   sync::{Arc, Mutex, RwLock},
   time::SystemTime,
 };

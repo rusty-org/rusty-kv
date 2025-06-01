@@ -61,7 +61,7 @@ impl Value {
   ///
   /// * `Some((String, Vec<String>))` - Command name (uppercase) and argument list
   /// * `None` - If the value is not a valid command format
-  pub fn to_command(&self) -> Option<(String, Vec<String>)> {
+  pub fn to_command(&self) -> Option<(String, Vec<Value>)> {
     if let Value::Array(elements) = self {
       if elements.is_empty() {
         return None;
@@ -72,8 +72,7 @@ impl Value {
         Value::BulkString(s) => {
           // Check if the string is in RESP format ($3\r\nset\r\n)
           if s.starts_with('$') && s.contains("\r\n") {
-            // Extract actual command from embedded RESP format
-            let parts: Vec<&str> = s.split("\r\n").collect();
+            let parts: Vec<&str> = s.split("\r\n").collect(); // Extract actual command from embedded RESP format
             if parts.len() >= 2 {
               parts[1].to_string().to_uppercase()
             } else {
@@ -82,37 +81,76 @@ impl Value {
           } else {
             s.clone().to_uppercase()
           }
-        },
+        }
         Value::SimpleString(s) => s.clone().to_uppercase(),
         _ => return None,
       };
 
-      // Extract arguments, also handling embedded RESP format
+      // Extract arguments, preserving their original types
       let args = elements[1..]
         .iter()
-        .filter_map(|v| match v {
+        .map(|v| match v {
           Value::BulkString(s) => {
             // Check if the string is in RESP format
             if s.starts_with('$') && s.contains("\r\n") {
               // Extract actual value from embedded RESP format
               let parts: Vec<&str> = s.split("\r\n").collect();
               if parts.len() >= 2 {
-                Some(parts[1].to_string())
+                Value::BulkString(parts[1].to_string())
               } else {
-                Some(s.clone())
+                v.clone()
               }
             } else if s.starts_with(':') {
               // Handle numeric values encoded as :100\r\n
-              Some(s.trim_start_matches(':')
-                   .trim_end_matches("\r\n")
-                   .to_string())
+              let num_str = s.trim_start_matches(':').trim_end_matches("\r\n");
+              if let Ok(num) = num_str.parse::<i64>() {
+                Value::Integer(num)
+              } else {
+                v.clone()
+              }
+            } else if s.starts_with("#") {
+              let bool_str = s.trim_start_matches('#').trim_end_matches("\r\n"); // Handle boolean values encoded as #t\r\n or #f\r\n
+              if bool_str == "t" {
+                Value::Boolean(true)
+              } else if bool_str == "f" {
+                Value::Boolean(false)
+              } else {
+                v.clone()
+              }
+            } else if s.starts_with("*") {
+              let mut lines = s.split("\r\n"); // Handle array values encoded as *3\r\n$1\r\n1\r\n$1\r\n2\r\n$1\r\n3\r\n
+
+              // Extract the array header, e.g., "*3"
+              let arr_header = lines.next().unwrap_or("");
+              let arr_length: usize = if arr_header.starts_with('*') {
+                arr_header[1..].parse().unwrap_or(0)
+              } else {
+                0
+              };
+
+              let mut array_values = Vec::with_capacity(arr_length);
+              let mut i = 0;
+
+              while i < arr_length {
+                if let Some(length_str) = lines.next() {
+                  // Skip the length indicator (like $1)
+                  if length_str.starts_with('$') {
+                    if let Some(value) = lines.next() {
+                      array_values.push(Value::BulkString(value.to_string()));
+                      i += 1;
+                    }
+                  }
+                } else {
+                  break;
+                }
+              }
+
+              Value::Array(array_values)
             } else {
-              Some(s.clone())
+              v.clone()
             }
-          },
-          Value::SimpleString(s) => Some(s.clone()),
-          Value::Integer(i) => Some(i.to_string()),
-          _ => None,
+          }
+          _ => v.clone(),
         })
         .collect();
 

@@ -34,13 +34,13 @@ pub type KvLinkedList = LinkedList<String>;
 #[derive(Debug)]
 pub enum Entities {
   /// A set of unique string values.
-  Set(Arc<Mutex<KvSet>>),
+  _Set(Arc<Mutex<KvSet>>),
 
   /// A map of string keys to RESP values.
   HashMap(Arc<Mutex<KvHashMap>>),
 
   /// A linked list of string values.
-  LinkedList(Arc<Mutex<KvLinkedList>>),
+  _LinkedList(Arc<Mutex<KvLinkedList>>),
 
   /// A hash set (placeholder for future implementation).
   _HashSet,
