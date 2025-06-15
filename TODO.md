@@ -17,6 +17,9 @@ server will save the data to the KDB file.
 **Example:**
 
 ```bash
+# Persist the current in memory state to the KDB file
+KDB PERSIST
+
 # Manually load the KDB file
 KDB LOAD /file/path.kdb
 
