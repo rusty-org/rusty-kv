@@ -5,20 +5,21 @@ authors = ["Piush Bose <dev.bosepiush@gmail.com>"]
 edition = "2024"
 
 [dependencies]
-anyhow = "1.0.59"                                             # error handling
-bytes = "1.3.0"                                               # helps manage buffers
+anyhow = "1.0.59"                                                     # error handling
+bytes = "1.3.0"                                                       # helps manage buffers
 chrono = "0.4.41"
-config = { version = "0.15.11", features = ["toml"] }         # config file parsing
-dotenv = "0.15.0"                                             # environment variable management
-log = "0.4.27"                                                # logging
-r2d2 = "0.8.10"                                               # connection pooling
-r2d2_sqlite = "0.28.0"                                        # connection pooling
-rusqlite = { version = "0.35.0", features = ["bundled"] }     # SQLite database
-serde = "1.0.219"                                             # serialization/deserialization
-serde_json = "1.0.140"                                        # JSON serialization/deserialization
+config = { version = "0.15.11", features = ["toml"] }                 # config file parsing
+dotenv = "0.15.0"                                                     # environment variable management
+log = "0.4.27"                                                        # logging
+r2d2 = "0.8.10"                                                       # connection pooling
+r2d2_sqlite = "0.28.0"                                                # connection pooling
+rusqlite = { version = "0.35.0", features = ["bundled"] }             # SQLite database
+serde = "1.0.219"                                                     # serialization/deserialization
+serde_json = "1.0.140"                                                # JSON serialization/deserialization
 sha3 = "0.10.8"
-simple_logger = { version = "5.0.0", features = ["colored"] } # simple logging
-thiserror = "1.0.32"                                          # error handling
-time = "0.3.41"                                               # date and time handling
-tokio = { version = "1.23.0", features = ["full"] }           # async networking
+simple_logger = { version = "5.0.0", features = ["colored"] }         # simple logging
+thiserror = "1.0.32"                                                  # error handling
+time = "0.3.41"                                                       # date and time handling
+tokio = { version = "1.23.0", features = ["full"] }                   # async networking
+tokio-cron-scheduler = { version = "0.14.0", features = ["english"] }
 uuid = "1.16.0"
