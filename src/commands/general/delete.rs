@@ -17,40 +17,40 @@ use crate::storage::memory::Store;
 pub struct DeleteCommand;
 
 impl DeleteCommand {
-  /// Executes the DELETE command.
-  ///
-  /// # Arguments
-  ///
-  /// * `args` - Keys to delete
-  /// * `store` - Memory store to operate on
-  ///
-  /// # Returns
-  ///
-  /// * `Ok(Value)` - Integer count of keys deleted
-  /// * `Err` - Error if no arguments are provided
-  ///
-  /// # Example
-  ///
-  /// ```
-  /// // Client sends: DEL key1 key2 key3
-  /// let result = DeleteCommand::execute(
-  ///     vec!["key1".to_string(), "key2".to_string(), "key3".to_string()],
-  ///     store
-  /// ).await;
-  /// // Returns integer representing number of keys actually deleted
-  /// ```
-  pub async fn execute(args: Vec<String>, store: MemoryStore) -> Result<Value> {
-    if args.is_empty() {
-      return Err(anyhow!("DEL requires at least one key"));
-    }
+    /// Executes the DELETE command.
+    ///
+    /// # Arguments
+    ///
+    /// * `args` - Keys to delete
+    /// * `store` - Memory store to operate on
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Value)` - Integer count of keys deleted
+    /// * `Err` - Error if no arguments are provided
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// // Client sends: DEL key1 key2 key3
+    /// let result = DeleteCommand::execute(
+    ///     vec!["key1".to_string(), "key2".to_string(), "key3".to_string()],
+    ///     store
+    /// ).await;
+    /// // Returns integer representing number of keys actually deleted
+    /// ```
+    pub async fn execute(args: Vec<String>, store: MemoryStore) -> Result<Value> {
+        if args.is_empty() {
+            return Err(anyhow!("DEL requires at least one key"));
+        }
 
-    for key in args.clone() {
-      if let Some(value) = store.get(key.as_str()).await {
-        debug!("Deleting key {} with value {:?}", key, value);
-        store.delete(key.as_str()).await;
-      }
-    }
+        for key in args.clone() {
+            if let Some(value) = store.get(key.as_str()).await {
+                debug!("Deleting key {} with value {:?}", key, value);
+                store.delete(key.as_str()).await;
+            }
+        }
 
-    Ok(Value::Integer(args.len() as i64))
-  }
+        Ok(Value::Integer(args.len() as i64))
+    }
 }
